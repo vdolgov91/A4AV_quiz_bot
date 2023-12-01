@@ -1,0 +1,7 @@
+/.idea/
+/__pycache__/
+/app_db/
+/tests/
+/venv/
+config.py
+*.log
