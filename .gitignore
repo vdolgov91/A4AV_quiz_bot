@@ -1,7 +1,7 @@
 /.idea/
 /__pycache__/
-/app_db/
-/tests/
 /venv/
+
+/app_db/a4av.db
 config.py
 *.log
