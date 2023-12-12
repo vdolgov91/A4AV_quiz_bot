@@ -1,17 +1,17 @@
+#TODO:
+#* добавить в telegramBot проверку создана ли таблица и если нет, то вызвать create_table()
+#* проверить необходимость использование контекстного менеджера with при работе с engine и connection
+
+
 #https://www.tutorialspoint.com/sqlalchemy/sqlalchemy_quick_guide.htm#
 #https://docs.sqlalchemy.org/en/14/orm/queryguide.html#select-statements
-
+import config
 from config import logger, dbPath
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String
+import os
+from pathlib import Path
 
-try:
-    engine = create_engine(dbPath, echo = False) #echo = True - вывод логов в консоль
-    conn = engine.connect()
-except Exception as err:
-    logger.error('Не удается создать create_engine по dbPath = %s с ошибкой %s', dbPath, str(err))
 meta = MetaData()
-
-
 userPreferences = Table(
     'user_preferences', meta,
     Column('telegram_id', Integer, unique=True, index=True),
@@ -20,6 +20,29 @@ userPreferences = Table(
     Column('exclude_theme', String),
     Column('exclude_org', String),
 )
+
+def create_connection(dbPath=config.dbPath):
+    '''Функция create_connection() создает подключение к базе данных, строка подключения к БД задана в config.dbPath.
+    Если в качестве СУБД используется SQLite, то создается локальный файл БД по адресу ./app_db/a4av.db.
+    Если файл уже создан, осуществляется подключение к нему.'''
+
+    # проверяем наличие всех нужных папок по пути к файлу БД, если их нет - создаём
+    if 'sqlite' in dbPath:
+        lastSlashIndex = dbPath.rfind(r'/')
+        dirLocation = dbPath[10:lastSlashIndex] # отрезаем 'sqlite:///' и '/a4av.db', остается имя папки
+        dirPath = Path.cwd() / dirLocation
+        if not os.path.exists(dirPath):
+            logger.debug(f'Создаем недостающие директории по пути {dirPath}')
+            os.makedirs(dirPath)
+
+    try:
+        engine = create_engine(dbPath, echo = False) #echo = True - вывод логов в консоль
+        conn = engine.connect()
+    except Exception as err:
+        logger.error('Не удается создать create_engine по dbPath = %s с ошибкой %s', dbPath, str(err))
+        raise
+    return engine, conn
+
 
 #функция для создания таблицы
 def create_table():
@@ -91,3 +114,6 @@ def delete_user(telegram_id):
     except Exception:
         logger.error("DELETE запрос по пользователю %s не удался со следующей ошибкой: %s", telegram_id, str(err))
         return False
+
+
+engine, conn = create_connection()
