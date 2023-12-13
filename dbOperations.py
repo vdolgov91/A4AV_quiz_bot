@@ -126,4 +126,3 @@ if __name__ == '__main__':
     # в ручном режиме создаем подключение, файл SQLite 'a4av.db' и таблицу user_preference в нем
     ENGINE, CONN = create_connection()
     create_table(ENGINE)
-    updatedUserPreferences = update_user_preferences(CONN, 1666680002, 'city', None, None, None)
