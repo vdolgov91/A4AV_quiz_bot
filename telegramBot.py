@@ -15,7 +15,7 @@
 from config import logger
 #импортируем наш рукописный модуль который парсит квизы, фильтрует их и присылает нам готовый list со строками которые надо отправить пользователю
 from quizAggregator import createInfoByCity, collectQuizData, createQuizList
-from dbOperations import create_connection, insert_new_user, get_user_preferences, update_user_preferences
+from dbOperations import create_connection, create_table, insert_new_user, get_user_preferences, update_user_preferences
 
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -585,4 +585,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     ENGINE, CONN = create_connection() # создаем объекты Engine и Connect к файлу базы данных
+    create_table(ENGINE) # создаем нужные таблицы (если еще не были созданы)
     main()
