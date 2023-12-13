@@ -20,7 +20,6 @@ userPreferences = Table(
     Column('exclude_theme', String),
     Column('exclude_org', String),
 )
-
 def create_connection(dbPath=config.dbPath):
     '''Функция create_connection() создает подключение к базе данных, строка подключения к БД задана в config.dbPath.
     Если в качестве СУБД используется SQLite, то создается локальный файл БД по адресу ./app_db/a4av.db.
@@ -28,6 +27,7 @@ def create_connection(dbPath=config.dbPath):
 
     # проверяем наличие всех нужных папок по пути к файлу БД, если их нет - создаём
     if 'sqlite' in dbPath:
+        logger.debug(f'Запрос на создание connection до файла базы данных {dbPath} в каталоге {Path.cwd()}')
         lastSlashIndex = dbPath.rfind(r'/')
         dirLocation = dbPath[10:lastSlashIndex] # отрезаем 'sqlite:///' и '/a4av.db', остается имя папки
         dirPath = Path.cwd() / dirLocation
@@ -43,16 +43,20 @@ def create_connection(dbPath=config.dbPath):
         raise
     return engine, conn
 
-
 #функция для создания таблицы
-def create_table():
+def create_table(engine):
+    '''Функция для создания таблиц из объекта Meta. По умолчанию на вход передается engine, сформированный при
+    импорте функции (engine, conn = create_connection().
+    Для тестирования необходимо формировать новый engine и передавать на вход его'''
+    logger.debug(f'Получен запрос на создание таблицы в файле базы данных в папке {Path.cwd()} ')
     try:
         meta.create_all(engine)
+        logger.debug(f'Создана таблица {userPreferences.name}')
     except Exception as err:
         logger.error('Не удается создать таблицу user_preferences с ошибкой %s', str(err))
 
 #Запрос предпочтений пользователя, возвращает результат в формате (123456, 'Новосибирск', 'ART pub', '18+', 'mama quiz') либо None
-def get_user_preferences(telegram_id):
+def get_user_preferences(conn, telegram_id):
     from sqlalchemy import select
     stmt = select(userPreferences).where(userPreferences.c.telegram_id == telegram_id)
     try:
@@ -64,7 +68,7 @@ def get_user_preferences(telegram_id):
         logger.error("SELECT запрос по пользователю %s не удался со следующей ошибкой: %s", telegram_id, str(err))
         return None
 
-def insert_new_user(telegram_id, city, excl_bar, excl_theme, excl_org):
+def insert_new_user(conn, telegram_id, city, excl_bar, excl_theme, excl_org):
     from sqlalchemy import insert
     stmt = (
         insert(userPreferences).
@@ -83,7 +87,7 @@ def insert_new_user(telegram_id, city, excl_bar, excl_theme, excl_org):
         logger.error("INSERT запрос по пользователю %s не удался со следующей ошибкой: %s", telegram_id,str(err))
         return False
 
-def update_user_preferences(telegram_id, city, excl_bar, excl_theme, excl_org):
+def update_user_preferences(conn, telegram_id, city, excl_bar, excl_theme, excl_org):
     from sqlalchemy import update
     stmt = (update(userPreferences).
             where(userPreferences.c.telegram_id == telegram_id).
@@ -102,7 +106,7 @@ def update_user_preferences(telegram_id, city, excl_bar, excl_theme, excl_org):
         return False
 
 #на период тестов, в проде не предполагается функционала удаления пользователей
-def delete_user(telegram_id):
+def delete_user(conn, telegram_id):
     from sqlalchemy import delete
     stmt = (
         delete(userPreferences)
@@ -116,4 +120,8 @@ def delete_user(telegram_id):
         return False
 
 
-engine, conn = create_connection()
+
+if __name__ == '__main__':
+    # в ручном режиме создаем подключение, файл SQLite 'a4av.db' и таблицу user_preference в нем
+    ENGINE, CONN = create_connection()
+    create_table(ENGINE)

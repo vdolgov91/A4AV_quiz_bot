@@ -15,7 +15,7 @@
 from config import logger
 #импортируем наш рукописный модуль который парсит квизы, фильтрует их и присылает нам готовый list со строками которые надо отправить пользователю
 from quizAggregator import createInfoByCity, collectQuizData, createQuizList
-from dbOperations import insert_new_user, get_user_preferences, update_user_preferences
+from dbOperations import create_connection, insert_new_user, get_user_preferences, update_user_preferences
 
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -63,7 +63,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ]
 
     global preferencesList, queryResult
-    queryResult = get_user_preferences(user.id)
+    queryResult = get_user_preferences(CONN, user.id)
     if queryResult: # делаем запрос о предпочтениях пользователя в БД, если он неуспешен то вернет None и не подпадет под условие
         preferencesList = list(queryResult) #БД возвращает tuple, переделываем его в List
     if preferencesList:
@@ -494,7 +494,7 @@ async def save_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     #если queryResult что-то вернул, то надо делать UPDATE. если не вернул - то INSERT
     if queryResult:
         # при удачном апдейте функция возвращает True, при неудачной False
-        if update_user_preferences(user.id, city, excl_bar, excl_theme, excl_orgs):
+        if update_user_preferences(CONN, user.id, city, excl_bar, excl_theme, excl_orgs):
             logger.info('Пользователь %s обновил свои предпочтения', user.id)
             await update.message.reply_text(
                 'Твои настройки обновлены! Теперь нажми команду /start, чтобы приступить к поиску квизов.',
@@ -509,7 +509,7 @@ async def save_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     else:
         #при удачной вставке функция возвращает True, при неудачной False
-        if insert_new_user(user.id, city, excl_bar, excl_theme, excl_orgs):
+        if insert_new_user(CONN, user.id, city, excl_bar, excl_theme, excl_orgs):
             logger.info('Пользователь %s сохранил свои предпочтения в базу данных', user.id)
             await update.message.reply_text(
                 'Твои настройки сохранены! Теперь нажми команду /start, чтобы приступить к поиску квизов.',
@@ -584,4 +584,5 @@ def main() -> None:
     application.run_polling()
 
 if __name__ == "__main__":
+    ENGINE, CONN = create_connection() # создаем объекты Engine и Connect к файлу базы данных
     main()
