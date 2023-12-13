@@ -115,9 +115,10 @@ def delete_user(conn, telegram_id):
     try:
         result = conn.execute(stmt)
         return True
-    except Exception:
+    except Exception as err:
         logger.error("DELETE запрос по пользователю %s не удался со следующей ошибкой: %s", telegram_id, str(err))
         return False
+
 
 
 
@@ -125,3 +126,4 @@ if __name__ == '__main__':
     # в ручном режиме создаем подключение, файл SQLite 'a4av.db' и таблицу user_preference в нем
     ENGINE, CONN = create_connection()
     create_table(ENGINE)
+    updatedUserPreferences = update_user_preferences(CONN, 1666680002, 'city', None, None, None)
