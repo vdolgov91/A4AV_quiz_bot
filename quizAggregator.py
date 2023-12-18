@@ -138,7 +138,7 @@ def assignThemesToQuiz(gamename, organizator):
 
 # функция которая опрашивает сайты организаторов и формирует полный список игр
 # на текущий момент она исключает игры по приглашениям и игры у которых есть запись только в резерв/нет мест
-def collectQuizData(cityOrganizators, cityLinks):
+def collectQuizData(cityOrganizators, cityLinks, launchedFromTest=False):
     ########################################### Квиз, плиз!
     qpName = 'Квиз Плиз'
     if qpName in cityOrganizators:
@@ -146,9 +146,10 @@ def collectQuizData(cityOrganizators, cityLinks):
             orgTag = organizatorsDict[qpName][0]  # тэг организатора, например qp
             qpLink = cityLinks[cityOrganizators.index(qpName)] # ссылка находится на том же элементе массива, что и название организатора
             #print('qpLink: ' + qpLink)
-            quizPlease = requests.get(qpLink)
-            #выбрасываем ошибку если страница Квиз Плиз недоступа
-            quizPlease.raise_for_status()
+            if not launchedFromTest:
+                quizPlease = requests.get(qpLink)
+                #выбрасываем ошибку если страница Квиз Плиз недоступа
+                quizPlease.raise_for_status()
             #мы отправляем в bs4 именно quizPlease.text, так как Html именно там
             qpSoup = bs4.BeautifulSoup(quizPlease.text, 'html.parser')
             #в элементе <div_id="w1" ....>, в классах schedule-column хранятся все доступные игры
@@ -249,8 +250,9 @@ def collectQuizData(cityOrganizators, cityLinks):
             orgTag = organizatorsDict[liName][0]  # тэг организатора, например qp
             liLink = cityLinks[cityOrganizators.index(liName)]  # ссылка находится на том же элементе массива, что и название организатора
             #print('liLink: ' + liLink)
-            ligaIndigo = requests.get(liLink)
-            ligaIndigo.raise_for_status()
+            if not launchedFromTest:
+                ligaIndigo = requests.get(liLink)
+                ligaIndigo.raise_for_status()
             liSoup = bs4.BeautifulSoup(ligaIndigo.text, 'html.parser')
             #почему-то полный путь по css selector ничего не возвращает, поэтому далее парсим ручками
             liGamesList = liSoup.select(r'#info > div > div > div')
@@ -301,8 +303,9 @@ def collectQuizData(cityOrganizators, cityLinks):
             orgTag = organizatorsDict[wowName][0]
             wowLink = cityLinks[cityOrganizators.index(wowName)]  # ссылка находится на том же элементе массива, что и название организатора
             #print('wowLink: ' + wowLink)
-            wowQuiz = requests.get(wowLink)
-            wowQuiz.raise_for_status()
+            if not launchedFromTest:
+                wowQuiz = requests.get(wowLink)
+                wowQuiz.raise_for_status()
             wowSoup = bs4.BeautifulSoup(wowQuiz.text, 'html.parser')
             #у WOW все игры лежат по селектору вида:
             #body > div.wrapper > div.schelude-tabs > div.schelude-tabs-body > div > div > div > div > div > div.game-row > div:nth-child(1)
@@ -373,8 +376,9 @@ def collectQuizData(cityOrganizators, cityLinks):
                 mamaName)]  # ссылка находится на том же элементе массива, что и название организатора
             #для Мама Квиза нужно добавить хэдер User-agent, значение можно взять из своего браузера, без него вернет 403 Forbidden
             userAgent = {'User-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36'}
-            mamaQuiz = requests.get(mamaLink, headers = userAgent)
-            mamaQuiz.raise_for_status()
+            if not launchedFromTest:
+                mamaQuiz = requests.get(mamaLink, headers = userAgent)
+                mamaQuiz.raise_for_status()
             mamaGameNameList = []
             mamaGameTagList = []
             mamaDateList = []
