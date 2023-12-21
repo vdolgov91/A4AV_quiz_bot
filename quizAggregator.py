@@ -46,10 +46,6 @@ organizatorErrors = {} #в этот словарь запишем сайты о�
 MonthDict = {'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8, 'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12}
 dowDict = {1: 'понедельник', 2: 'вторник', 3: 'среда', 4: 'четверг', 5: 'пятница', 6: 'суббота', 7: 'воскресенье'}
 #dowDictReverse = {'понедельник': 1, 'вторник': 2, 'среда': 3, 'четверг': 4, 'пятница': 5, 'суббота': 6, 'воскресенье': 7}
-curYear = datetime.date.today().year
-nextYear = curYear + 1
-curMonth = datetime.date.today().month
-curDT = datetime.datetime.now()
 qpName = ''
 liName = ''
 wowName = ''
@@ -140,10 +136,11 @@ def assignThemesToQuiz(gamename, organizator):
 # на текущий момент она исключает игры по приглашениям и игры у которых есть запись только в резерв/нет мест
 def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
     ########################################### Квиз, плиз!
-    if len(localHTMLs) > 0:
-        '''Если функция запущена с помощью pytest, то необходимо переопределить переменную curDT 
-        для подстановки тестового значения с помощью freezegun'''
-        curDT = datetime.datetime.now()
+    curYear = datetime.date.today().year
+    nextYear = curYear + 1
+    curMonth = datetime.date.today().month
+    curDT = datetime.datetime.now()
+
     qpName = 'Квиз Плиз'
     if qpName in cityOrganizators:
         try:
@@ -509,11 +506,12 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
                 else:
                     quizDT = datetime.datetime(curYear, mamaMonth, mamaDay, mamaHour, mamaMinute)
 
-                games[orgTag + str(q)] = {}
-                games[orgTag + str(q)]['game'] = mamaGameName
-                games[orgTag + str(q)]['date'] = quizDT
-                games[orgTag + str(q)]['bar'] = mamaBar
-                games[orgTag + str(q)]['tag'] = mamaGameTag
+                if quizDT >= curDT:
+                    games[orgTag + str(q)] = {}
+                    games[orgTag + str(q)]['game'] = mamaGameName
+                    games[orgTag + str(q)]['date'] = quizDT
+                    games[orgTag + str(q)]['bar'] = mamaBar
+                    games[orgTag + str(q)]['tag'] = mamaGameTag
         except Exception as err:
             organizatorErrors[mamaName] = str(err)
     return games, organizatorErrors
