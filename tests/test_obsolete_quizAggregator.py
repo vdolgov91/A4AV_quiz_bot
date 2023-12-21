@@ -1,3 +1,5 @@
+import datetime
+
 import quizAggregator
 
 import pytest
@@ -134,3 +136,15 @@ class TestCollectQuizData:
         assert organizatorErrors == expectedOrganizatorErrors
 
 
+    def test_number_of_games(self, quiz_from_local_files):
+        '''Проверяем количество извлеченных квизов с локальных копий веб-страниц из папки /tests/saved_web_pages
+        ligaindigo_schedule_2023-12-14.html - 1
+        mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
+        quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
+        wowquiz_schedule_2023-12-20.html - 6 (остальные резерв и должны быть отброшены)
+        '''
+        print(quiz_from_local_files)
+        expected = 1 + 5 + 3 + 6
+        localQuizes = quiz_from_local_files[0]
+        print(len(localQuizes))
+        assert len(localQuizes) == expected

@@ -138,18 +138,24 @@ def assignThemesToQuiz(gamename, organizator):
 
 # функция которая опрашивает сайты организаторов и формирует полный список игр
 # на текущий момент она исключает игры по приглашениям и игры у которых есть запись только в резерв/нет мест
-def collectQuizData(cityOrganizators, cityLinks, launchedFromTest=False):
+def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
     ########################################### Квиз, плиз!
+    if len(localHTMLs) > 0:
+        '''Если функция запущена с помощью pytest, то необходимо переопределить переменную curDT 
+        для подстановки тестового значения с помощью freezegun'''
+        curDT = datetime.datetime.now()
     qpName = 'Квиз Плиз'
     if qpName in cityOrganizators:
         try:
             orgTag = organizatorsDict[qpName][0]  # тэг организатора, например qp
             qpLink = cityLinks[cityOrganizators.index(qpName)] # ссылка находится на том же элементе массива, что и название организатора
             #print('qpLink: ' + qpLink)
-            if not launchedFromTest:
+            if len(localHTMLs) == 0:
                 quizPlease = requests.get(qpLink)
                 #выбрасываем ошибку если страница Квиз Плиз недоступа
                 quizPlease.raise_for_status()
+            else:
+                quizPlease = localHTMLs[qpName]
             #мы отправляем в bs4 именно quizPlease.text, так как Html именно там
             qpSoup = bs4.BeautifulSoup(quizPlease.text, 'html.parser')
             #в элементе <div_id="w1" ....>, в классах schedule-column хранятся все доступные игры
@@ -250,12 +256,20 @@ def collectQuizData(cityOrganizators, cityLinks, launchedFromTest=False):
             orgTag = organizatorsDict[liName][0]  # тэг организатора, например qp
             liLink = cityLinks[cityOrganizators.index(liName)]  # ссылка находится на том же элементе массива, что и название организатора
             #print('liLink: ' + liLink)
-            if not launchedFromTest:
+            if len(localHTMLs) == 0:
                 ligaIndigo = requests.get(liLink)
                 ligaIndigo.raise_for_status()
+            else:
+                ligaIndigo = localHTMLs[liName]
             liSoup = bs4.BeautifulSoup(ligaIndigo.text, 'html.parser')
             #почему-то полный путь по css selector ничего не возвращает, поэтому далее парсим ручками
-            liGamesList = liSoup.select(r'#info > div > div > div')
+            if len(localHTMLs) == 0:
+                liGamesList = liSoup.select(r'#info > div > div > div')
+            else:
+                # для локальной копии почему-то не работает селектор как для подключения к реальной странице
+                liGamesList = liSoup.select(r'#info > div > div > div > div > div > div > div')
+
+            logger.debug(f'liGamesList: {liGamesList}')
             #информация о наличии мест лежит в другом месте, в 0,2,4... элементах
             liGamesAvailable = liSoup.select(r'#info > div > div')
 
@@ -303,9 +317,11 @@ def collectQuizData(cityOrganizators, cityLinks, launchedFromTest=False):
             orgTag = organizatorsDict[wowName][0]
             wowLink = cityLinks[cityOrganizators.index(wowName)]  # ссылка находится на том же элементе массива, что и название организатора
             #print('wowLink: ' + wowLink)
-            if not launchedFromTest:
+            if len(localHTMLs) == 0:
                 wowQuiz = requests.get(wowLink)
                 wowQuiz.raise_for_status()
+            else:
+                wowQuiz = localHTMLs[wowName]
             wowSoup = bs4.BeautifulSoup(wowQuiz.text, 'html.parser')
             #у WOW все игры лежат по селектору вида:
             #body > div.wrapper > div.schelude-tabs > div.schelude-tabs-body > div > div > div > div > div > div.game-row > div:nth-child(1)
@@ -372,87 +388,110 @@ def collectQuizData(cityOrganizators, cityLinks, launchedFromTest=False):
     if mamaName in cityOrganizators:
         try:
             orgTag = organizatorsDict[mamaName][0]
-            mamaLink = cityLinks[cityOrganizators.index(
-                mamaName)]  # ссылка находится на том же элементе массива, что и название организатора
-            #для Мама Квиза нужно добавить хэдер User-agent, значение можно взять из своего браузера, без него вернет 403 Forbidden
+            mamaLink = cityLinks[cityOrganizators.index(mamaName)]
+            #для Мама Квиза нужно добавить header User-agent, значение можно взять из своего браузера, без него вернет 403 Forbidden
             userAgent = {'User-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36'}
-            if not launchedFromTest:
+            if len(localHTMLs) == 0:
                 mamaQuiz = requests.get(mamaLink, headers = userAgent)
                 mamaQuiz.raise_for_status()
+            else:
+                mamaQuiz = localHTMLs[mamaName]
             mamaGameNameList = []
             mamaGameTagList = []
             mamaDateList = []
             mamaStartingTimeList = []
-            #mamaDOWList = []
             mamaMonthList = []
             mamaBarList = []
+            startElementsIndexes = []
             mamaSoup = bs4.BeautifulSoup(mamaQuiz.text, 'html.parser')
             # #rec487013113 > div > div - корневой элемент где хранится вся информация о квизах. информация не сгруппирована по квизам,
             # каждый элемент (дата, название, тема и т.п.) являются children-ом данного элемента.
-            # Они вообще никак не упорядочены, идут в произвольном порядке, поэтому извлечь можно только regexp-ами
-            # поэтому сначала запишем элементы в соответсвтующие листы, а когда листы будут заполнены сформируем информацию о квизах
+            # сначала ищем элемент с числом проведения квиза, это почти всегда будет первый элемент информации о квизе, позиции остальных
+            # элементов могут меняться, поэтому информация будет извлекаться регулярными выражениями
             mamaElements = mamaSoup.select('#rec487013113 > div > div > div')
-            for i in range(len(mamaElements)):
-                curElement = str(mamaElements[i])
+
+            # ищем элемент с числом проведения квиза в формате 01-31 и записываем индексы где хранятся эти элементы
+            # это почти всегда будет первый элемент информации о квизе, позиции остальных элементов еще менее стабильны
+            # эта логика должна отработать корректно для всех случаев когда у первого квиза этот элемент является первым
+            for i, curSoupElement in enumerate(mamaElements):
+                curElement = str(curSoupElement)
                 tempSoup = bs4.BeautifulSoup(curElement, 'html.parser')
-                #пробуем извлечь значение тэга вида <div class="tn-atom" field="tn_text_1681714185448">мая</div>, если его нет, то по exc продолжаем цикл
                 try:
                     result = tempSoup.find("div", {"class": "tn-atom"})
                     tempText = result.text
-                    #находится много пустых строк, их не обрабатываем
                     if tempText:
-                        #извлекаем название игры; оно пишется капсом, решеткой и номером игры, например, 'ТОЛЬКО СЕРИАЛЫ #1'
-                        mamaGameNameRegEx = re.compile(r'''
-                                                       ^[^а-яa-z]+        #исключаем строчные буквы
-                                                       \#\d{1,4}          #решётка и 1-4 цифры
-                                                       ''', re.VERBOSE)
-                        mo = mamaGameNameRegEx.search(tempText)
-                        if mo:
-                            mamaGameName = mo.group()
-                            mamaGameTag = assignThemesToQuiz(mamaGameName, mamaName)
-                            mamaGameNameList.append(mamaGameName)
-                            mamaGameTagList.append(mamaGameTag)
-                            continue #для этого тэга не делаем других проверок
-
-                        #извлекаем число проведения игры, 1 или 2 цифры, например, '21'
                         mamaDateRegEx = re.compile(r'^\d{1,2}$')
                         mo = mamaDateRegEx.search(tempText)
                         if mo:
                             mamaDate = mo.group()
                             mamaDateList.append(mamaDate)
-                            continue #для этого тэга не делаем других проверок
-
-                        # извлекаем время начала игры, например, '18:00'
-                        mamaStartingTimeRegEx = re.compile(r'^\d\d:\d\d$')
-                        mo = mamaStartingTimeRegEx.search(tempText)
-                        if mo:
-                            mamaStartingTime = mo.group()
-                            mamaStartingTimeList.append(mamaStartingTime)
-                            continue  # для этого тэга не делаем других проверок
-
-                        # извлекаем адрес бара по вхождению 'ул.', например, 'MISHKIN&MISHKIN (ул. Нарымская, 37)'
-                        if 'ул. ' in tempText:
-                            tempIndex = tempText.index('(')
-                            mamaBar = tempText[:tempIndex-1] #отрезаем адрес и пробел перед ним
-                            mamaBarList.append(mamaBar)
+                            startElementsIndexes.append(i)
                             continue
 
-                        # извлекаем месяц в формате 'мая'
-                        if tempText in MonthDict:
-                            mamaMonth = MonthDict[tempText]
-                            mamaMonthList.append(mamaMonth)
-                            continue
-
-                        # извлекаем день в формате 'понедельник'
-                        # !!!это не нужно, день недели определяется по дате в функции createQuizList
-                        # !!!если не нужно это, то не нужен dowDictReverse и mamaDOWList
-                        # if tempText in dowDictReverse:
-                        #     mamaDOW = dowDictReverse[tempText]
-                        #     mamaDOWList.append(mamaDOW)
-                        #     #print(mamaDOW)
-                        #     continue
                 except:
                     continue
+
+            # на основе списка индексов элементов с которых начинается информация о квизе формируем
+            # список индексов элементов на которых заканчивается информация о квизе:
+            # startElementsIndexes = [9, 29, 50, 69, 93]
+            # endElementsIndexes   = [29, 50, 69, 93, 111]
+            endElementsIndexes = startElementsIndexes.copy()
+            endElementsIndexes.pop(0)  # удаляем первый элемент, сдвигаем остальные влево
+            finalElementIndex = len(mamaElements)
+            endElementsIndexes.append(finalElementIndex)  # в качестве последнего индекса указываем последний элемент
+
+            for x, index in enumerate(startElementsIndexes):
+                # ищем информацию между первым элементом текущего квиза startElementsIndexes[x] + 1
+                # и первым элементом следующего endElementsIndexes[x]
+                # startElementsIndexes[x] + 1 - чтобы повторно не смотреть элемент в котором заведомо лежит число проведения квиза
+                for i in range(startElementsIndexes[x] + 1, endElementsIndexes[x]):
+                    curElement = str(mamaElements[i])
+                    tempSoup = bs4.BeautifulSoup(curElement, 'html.parser')
+                    # пробуем извлечь значение тэга вида <div class="tn-atom" field="tn_text_1681714185448">мая</div>, если его нет, то по exc продолжаем цикл
+                    try:
+                        result = tempSoup.find("div", {"class": "tn-atom"})
+                        tempText = result.text
+                        # находится много пустых строк, их не обрабатываем
+                        if tempText:
+                            # извлекаем название игры; оно пишется капсом, решеткой и номером игры, например, 'ТОЛЬКО СЕРИАЛЫ #1'
+                            # праздничные игры пишутся капсом и заканчиваются на год, например, 'КВИЗАНУТЫЙ НОВЫЙ ГОД 2024'
+                            mamaGameNameRegEx = re.compile(r'''
+                                                                           ^[^а-яa-z]+        #исключаем строчные буквы
+                                                                           (\#\d{1,4}|        #'решётка' и 1-4 цифры ИЛИ
+                                                                           2\d\d\d)$          #2xxx год в конце названия
+                                                                           ''', re.VERBOSE)
+                            mo = mamaGameNameRegEx.search(tempText)
+                            if mo:
+                                mamaGameName = mo.group()
+                                mamaGameTag = assignThemesToQuiz(mamaGameName, mamaName)
+                                mamaGameNameList.append(mamaGameName)
+                                mamaGameTagList.append(mamaGameTag)
+                                continue  # для этого тэга не делаем других проверок
+
+                            # извлекаем время начала игры, например, '18:00'
+                            mamaStartingTimeRegEx = re.compile(r'^\d\d:\d\d$')
+                            mo = mamaStartingTimeRegEx.search(tempText)
+                            if mo:
+                                mamaStartingTime = mo.group()
+                                mamaStartingTimeList.append(mamaStartingTime)
+                                continue
+
+                            # извлекаем адрес бара по вхождению 'ул.', например, 'MISHKIN&MISHKIN (ул. Нарымская, 37)'
+                            if 'ул. ' in tempText:
+                                tempIndex = tempText.index('(')
+                                mamaBar = tempText[:tempIndex - 1]  # отрезаем адрес и пробел перед ним
+                                mamaBarList.append(mamaBar)
+                                continue
+
+                            # извлекаем месяц в формате 'мая'
+                            if tempText in MonthDict:
+                                mamaMonth = MonthDict[tempText]
+                                mamaMonthList.append(mamaMonth)
+                                continue
+
+                    except:
+                        continue
+
             # получив упорядоченные листы с информацией, преобразуем ее в нужный формат и добавим в словарь games
             for q in range(len(mamaGameNameList)):
                 mamaGameName = mamaGameNameList[q]
