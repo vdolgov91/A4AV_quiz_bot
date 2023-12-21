@@ -124,27 +124,52 @@ class TestAssignThemesToQuiz:
 
 class TestCollectQuizData:
     '''Класс для тестирования функции quizAggregator.collectQuizData'''
+
     def test_mock_nonexistent_org(self):
         '''Передаем на вход функции collectQuizData несуществующего организатора'''
         cityOrganizators = ['Оставить всех организаторов', 'Тестовый организатор']
         cityLinks = ['placeholder', 'https://test.local']
         expectedGames, expectedOrganizatorErrors = {}, {}
         games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks)
-        print(games)
-        print(organizatorErrors)
         assert games == expectedGames
         assert organizatorErrors == expectedOrganizatorErrors
 
 
-    def test_number_of_games(self, quiz_from_local_files):
+    def test_mock_intented_org_error(self):
+        '''Передаем на вход функции намеренно некорректную информацию по реальному организатору
+        и проверяем, что получили organizatorError'''
+        cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз']
+        cityLinks = ['placeholder', 'wrongtesturl']
+        games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks)
+        assert len(organizatorErrors) > 0
+
+
+    def test_mock_number_of_games(self, quiz_from_local_files):
         '''Проверяем количество извлеченных квизов с локальных копий веб-страниц из папки /tests/saved_web_pages
         ligaindigo_schedule_2023-12-14.html - 1
         mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
         quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
         wowquiz_schedule_2023-12-20.html - 6 (остальные резерв и должны быть отброшены)
         '''
-        print(quiz_from_local_files)
         expected = 1 + 5 + 3 + 6
         localQuizes = quiz_from_local_files[0]
-        print(len(localQuizes))
         assert len(localQuizes) == expected
+
+    @pytest.mark.parametrize('gameParam', ['game', 'date', 'bar', 'tag'])
+    def test_mock_game_params(self, quiz_from_local_files, expected_games, gameParam):
+        '''Проверяем что названия игр извлеклись правильно, сравнивая с эталонными значениями'''
+        expectedGameParams = [value[gameParam] for key, value in expected_games.items()]
+        returnedGameParams = [value[gameParam] for key, value in quiz_from_local_files[0].items()]
+        assert returnedGameParams == expectedGameParams
+
+
+    def test_real_games_collected_some_games(self, quiz_from_real_web_sites):
+        '''Делаем запрос на реальные сайты организаторов и проверяем что список игр вернулся ненулевым'''
+        # print(f'\nreal games:\n{quiz_from_real_web_sites[0]}')
+        assert len(quiz_from_real_web_sites[0]) > 0
+
+
+    def test_real_games_no_organizator_errors(self, quiz_from_real_web_sites):
+        '''Делаем запрос на реальные сайты организаторов и проверяем что ни по одному из организаторов нет ошибок'''
+        #print(f'\nreal organizatorErrors:\n{quiz_from_real_web_sites[1]}')
+        assert len(quiz_from_real_web_sites[1]) == 0

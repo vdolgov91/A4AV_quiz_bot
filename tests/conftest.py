@@ -3,6 +3,7 @@ import freezegun
 
 import config
 import dbOperations
+import quizAggregator
 
 import pytest
 from pathlib import Path
@@ -75,7 +76,6 @@ def quiz_from_local_files():
     В папке /test/saved_web_pages хранятся html-страницы с расписанием игр разных организаторов.
     Функция возвращает tulpe с содержимым (games, organizatorErrors), извлеченным из локальных файлов.
     '''
-    import quizAggregator
     responsesDict = {}
     cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
                         'WOW Quiz/ Эйнштейн Party']
@@ -102,4 +102,55 @@ def quiz_from_local_files():
             raise FileExistsError(f'File {pathToLocalHTML} does not exist')
     games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks, responsesDict)
     return games, organizatorErrors
+
+@pytest.fixture(scope='session')
+def quiz_from_real_web_sites():
+    '''Запрашиваем инфорамцию по квизам с настоящих веб сайтов на время фактического запуска теста'''
+    cityOrganizatorsReal = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
+                        'WOW Quiz/ Эйнштейн Party']
+    cityLinksReal = ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk',
+                 'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
+    gamesReal, organizatorErrorsReal = quizAggregator.collectQuizData(cityOrganizatorsReal, cityLinksReal)
+    return gamesReal, organizatorErrorsReal
+
+@pytest.fixture(scope='session')
+def expected_games():
+    '''Словарь заведомо корректных игр на основании запроса от 2023-12-13 в файлы
+    ligaindigo_schedule_2023-12-14.html - 1
+    mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
+    quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
+    wowquiz_schedule_2023-12-20.html - 6 (остальные резерв и должны быть отброшены)
+    '''
+    return {
+        'qp0': {'game': 'Квиз, плиз! NSK #567', 'date': datetime.datetime(2023, 12, 14, 20, 0), 'bar': 'Арт П.А.Б.',
+                'tag': ['Классика']},
+        'qp4': {'game': 'Квиз, плиз! NSK #569', 'date': datetime.datetime(2023, 12, 19, 20, 0), 'bar': 'Арт П.А.Б.',
+                'tag': ['Классика']},
+        'qp6': {'game': 'Квиз, плиз! NSK #570', 'date': datetime.datetime(2023, 12, 21, 20, 0), 'bar': 'Арт П.А.Б.',
+                'tag': ['Классика']},
+        'li0': {'game': 'Новый год СССР', 'date': datetime.datetime(2023, 12, 18, 19, 30), 'bar': 'Три Лося',
+                'tag': ['Ностальгия']},
+        'wow5': {'game': 'Обо всём. Похмельно-новогодняя #47 ', 'date': datetime.datetime(2024, 1, 2, 16, 0),
+                 'bar': 'Три Лося', 'tag': ['Классика']},
+        'wow6': {'game': 'Угадай мелодию. Русское (туры по жанрам)', 'date': datetime.datetime(2024, 1, 3, 16, 0),
+                 'bar': 'Три Лося', 'tag': ['Мультимедиа']},
+        'wow7': {'game': 'Топовые кино, мультфильмы, сериалы #4', 'date': datetime.datetime(2024, 1, 4, 16, 0),
+                 'bar': 'Три Лося', 'tag': ['Мультимедиа']},
+        'wow8': {'game': 'Советское кино #2 (туры по 5 фильмам)', 'date': datetime.datetime(2024, 1, 5, 16, 0),
+                 'bar': 'Три Лося', 'tag': ['Мультимедиа']},
+        'wow9': {'game': 'РУсская музыка 90-х и 00-х #2', 'date': datetime.datetime(2024, 1, 6, 16, 0),
+                 'bar': 'Три Лося', 'tag': ['Мультимедиа', 'Ностальгия']},
+        'wow10': {'game': 'Гарри Поттер лайт #29 (с туром про рождество)', 'date': datetime.datetime(2024, 1, 7, 16, 0),
+                  'bar': 'Три Лося', 'tag': ['Мультимедиа']},
+        'mama0': {'game': 'КВИЗАНУТЫЙ НОВЫЙ ГОД 2024', 'date': datetime.datetime(2023, 12, 13, 19, 30),
+                  'bar': 'MISHKIN&MISHKIN', 'tag': []},
+        'mama1': {'game': 'АЛКОКВИЗ #2', 'date': datetime.datetime(2024, 1, 3, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+                  'tag': []},
+        'mama2': {'game': 'КИНОМЬЮЗИК: НОВОГОДНИЙ #2', 'date': datetime.datetime(2024, 1, 4, 14, 0),
+                  'bar': 'MISHKIN&MISHKIN', 'tag': ['Мультимедиа']},
+        'mama3': {'game': 'ЛОГИКА ГДЕ? #14', 'date': datetime.datetime(2024, 1, 5, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+                  'tag': []},
+        'mama4': {'game': 'КЛАССИКА #128', 'date': datetime.datetime(2024, 1, 6, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+                  'tag': ['Классика']}
+    }
 
