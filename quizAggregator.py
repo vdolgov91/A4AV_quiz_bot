@@ -134,7 +134,6 @@ def assignThemesToQuiz(gamename, organizator):
 # на текущий момент она исключает игры по приглашениям и игры у которых есть запись только в резерв/нет мест
 def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
     ########################################### Квиз, плиз!
-    print(f'localHTMLs:{localHTMLs}')
     curYear = datetime.date.today().year
     nextYear = curYear + 1
     curMonth = datetime.date.today().month
@@ -570,14 +569,12 @@ def createQuizList(games, organizatorErrors, dow, selected_theme, excl_bar, excl
 
         #оставляем только ту тематику, которую пользователь явно выбрал
         if selected_theme != themes[0] and selected_theme not in games[i]['tag']:
-            print('Первое условие')
             continue
         #проверяем нет ли у игры доп. тематики, по которой ее все таки надо исключить. например, у игры тематики "Мультимедиа" и "Ностальгия"
         #пользователь выбрал Мультимедиа, а в исключениях у него Ностальгия. такую игру исключаем
         #также если пользователь выбрал "Оставить все", то исключаем те тематики которые он исключил в preferences
         #elif selected_theme != themes[0]:
         else:
-            print('Второе условие')
             mainLoopState = False #для того чтобы прервать outer loop
             for t in games[i]['tag']:
                 if t in excl_theme:
@@ -585,10 +582,6 @@ def createQuizList(games, organizatorErrors, dow, selected_theme, excl_bar, excl
                     break #прерываем inner loop
             if mainLoopState:
                 continue
-        #если пользователь выбрал "Оставить все", то исключаем те тематики которые он исключил в preferences
-        # elif selected_theme == themes[0] and selected_theme in excl_theme:
-        #     print('попали в 3 услоиве')
-        #     continue
 
         #извлекаем информацию о дате, отбрасываем неподходящие дни если задан параметр dow, преобразуем дату в читаемый формат
         quizDate = games[i]['date']
@@ -606,7 +599,6 @@ def createQuizList(games, organizatorErrors, dow, selected_theme, excl_bar, excl
             #приводим дату к читабельному виду "26 июня, 18:00"
             quizDateReadable = str(quizDate.day) + ' ' + quizMonth + ', ' + quizTime
             quizReadable = str(k) + '. ' + organizator + ': ' + games[i]['game'] + '. Бар: ' + games[i]['bar'] + ', ' + quizDOWReadable + ', ' + quizDateReadable + '\n'
-            #quizList.append('\n')
             quizList.append(quizReadable)
 
     #если при запросе информации по каким-то организаторам были ошибки - выводим пользователю это сообщение
@@ -615,10 +607,6 @@ def createQuizList(games, organizatorErrors, dow, selected_theme, excl_bar, excl
         for e in organizatorErrors:
             quizList.append(e)
         quizList.append('\nПопробуй запросить информацию по ним позже.')
-
-    print('quizList: ' + str(quizList))
-            
-            #print(organizator + ': ' + games[i]['game'] + '. Бар: ' + games[i]['bar'] + ', ' + quizDateReadable)
 
     return quizList
 

@@ -1,9 +1,9 @@
-import datetime
-
 import quizAggregator
 
+import datetime
 import pytest
 from unittest.mock import patch
+
 
 class TestCreateInfoByCity:
     '''Класс для тестирования функции quizAggregator.createInfoByCity'''
@@ -42,7 +42,6 @@ class TestAssignThemesToQuiz:
     def test_tag_with_None_input(self):
         '''Проверяет передачу некорректных параметров на вход assignThemesToQuiz()'''
         tags = quizAggregator.assignThemesToQuiz(None, None)
-        print(tags)
         # TODO: доделать когда в функции будет обработка ошибки
 
 
@@ -138,10 +137,11 @@ class TestCollectQuizData:
     def test_mock_intented_org_error(self):
         '''Передаем на вход функции намеренно некорректную информацию по реальному организатору
         и проверяем, что получили organizatorError'''
-        cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз']
-        cityLinks = ['placeholder', 'wrongtesturl']
+        cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
+                        'WOW Quiz/ Эйнштейн Party']
+        cityLinks = ['placeholder', 'wrongtesturl', 'wrongtesturl', 'wrongtesturl', 'wrongtesturl']
         games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks)
-        assert len(organizatorErrors) > 0
+        assert len(organizatorErrors) == 4
 
 
     def test_mock_number_of_games(self, quiz_from_local_files):
@@ -173,3 +173,228 @@ class TestCollectQuizData:
         '''Делаем запрос на реальные сайты организаторов и проверяем что ни по одному из организаторов нет ошибок'''
         #print(f'\nreal organizatorErrors:\n{quiz_from_real_web_sites[1]}')
         assert len(quiz_from_real_web_sites[1]) == 0
+
+
+class TestCreateQuizList:
+    '''Класс для тестирования функции quizAggregator.createQuizList()'''
+
+    def test_sort_by_date_and_formatting(self, expected_games):
+        '''Проверяем что игры разных организаторов были правильно отсортированы по дате проведения,
+        формат предоставляемых данных соответствует ожидаемому,а заодно проверяем кейс для случая когда
+        выбран любой день недели (DOW = [1...7]
+        '''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Оставить все'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        expectedQuizList = [
+'1. <b>Мама Квиз</b>: КВИЗАНУТЫЙ НОВЫЙ ГОД 2024. Бар: MISHKIN&MISHKIN, среда, 13 декабря, 19:30\n',
+'2. <b>Квиз Плиз</b>: Квиз, плиз! NSK #567. Бар: Арт П.А.Б., четверг, 14 декабря, 20:00\n',
+'3. <b>Лига Индиго</b>: Новый год СССР. Бар: Три Лося, понедельник, 18 декабря, 19:30\n',
+'4. <b>Квиз Плиз</b>: Квиз, плиз! NSK #569. Бар: Арт П.А.Б., вторник, 19 декабря, 20:00\n',
+'5. <b>Квиз Плиз</b>: Квиз, плиз! NSK #570. Бар: Арт П.А.Б., четверг, 21 декабря, 20:00\n',
+'6. <b>WOW Quiz/ Эйнштейн Party</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
+'7. <b>Мама Квиз</b>: АЛКОКВИЗ #2. Бар: MISHKIN&MISHKIN, среда, 3 января, 14:00\n',
+'8. <b>WOW Quiz/ Эйнштейн Party</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
+'9. <b>Мама Квиз</b>: КИНОМЬЮЗИК: НОВОГОДНИЙ #2. Бар: MISHKIN&MISHKIN, четверг, 4 января, 14:00\n',
+'10. <b>WOW Quiz/ Эйнштейн Party</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
+'11. <b>Мама Квиз</b>: ЛОГИКА ГДЕ? #14. Бар: MISHKIN&MISHKIN, пятница, 5 января, 14:00\n',
+'12. <b>WOW Quiz/ Эйнштейн Party</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+'13. <b>Мама Квиз</b>: КЛАССИКА #128. Бар: MISHKIN&MISHKIN, суббота, 6 января, 14:00\n',
+'14. <b>WOW Quiz/ Эйнштейн Party</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
+'15. <b>WOW Quiz/ Эйнштейн Party</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n'
+]
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme, excl_bar, excl_theme, excl_orgs)
+        assert expectedQuizList == returnedQuizList
+
+
+    def test_dow_1_to_5(self, expected_games):
+        '''Проверяем что функция вернула только игры проходящие в будние дни'''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5]
+        selected_theme = 'Оставить все'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        for quiz in returnedQuizList:
+            assert 'суббота' not in quiz
+            assert 'воскресенье' not in quiz
+
+
+    def test_dow_6_to_7(self, expected_games):
+        '''Проверяем что функция вернула только игры проходящие в выходные дни '''
+        organizatorErrors = []
+        dow = [6, 7]
+        selected_theme = 'Оставить все'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        for quiz in returnedQuizList:
+            assert 'понедельник' not in quiz
+            assert 'вторник' not in quiz
+            assert 'среда' not in quiz
+            assert 'четверг' not in quiz
+            assert 'пятница' not in quiz
+
+
+    def test_filter_by_tag_classic(self, expected_games):
+        '''Проверяет что при выборе темы возвращаются только игры с тематикой Классика'''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Классика'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        expectedQuizList = [
+            '1. <b>Квиз Плиз</b>: Квиз, плиз! NSK #567. Бар: Арт П.А.Б., четверг, 14 декабря, 20:00\n',
+            '2. <b>Квиз Плиз</b>: Квиз, плиз! NSK #569. Бар: Арт П.А.Б., вторник, 19 декабря, 20:00\n',
+            '3. <b>Квиз Плиз</b>: Квиз, плиз! NSK #570. Бар: Арт П.А.Б., четверг, 21 декабря, 20:00\n',
+            '4. <b>WOW Quiz/ Эйнштейн Party</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
+            '5. <b>Мама Квиз</b>: КЛАССИКА #128. Бар: MISHKIN&MISHKIN, суббота, 6 января, 14:00\n'
+        ]
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        assert expectedQuizList == returnedQuizList
+
+
+    def test_filter_by_tag_multimedia(self, expected_games):
+        '''Проверяем что при выборе темы возвращаются только игры с тематикой Мультимедиа'''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Мультимедиа'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        expectedQuizList = [
+            '1. <b>WOW Quiz/ Эйнштейн Party</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
+            '2. <b>Мама Квиз</b>: КИНОМЬЮЗИК: НОВОГОДНИЙ #2. Бар: MISHKIN&MISHKIN, четверг, 4 января, 14:00\n',
+            '3. <b>WOW Quiz/ Эйнштейн Party</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
+            '4. <b>WOW Quiz/ Эйнштейн Party</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+            '5. <b>WOW Quiz/ Эйнштейн Party</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
+            '6. <b>WOW Quiz/ Эйнштейн Party</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n'
+        ]
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        assert expectedQuizList == returnedQuizList
+
+
+    def test_filter_by_tag_nostalgy(self, expected_games):
+        '''Проверяем что при выборе темы возвращаются только игры с тематикой Ностальгия'''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Ностальгия'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        expectedQuizList = [
+            '1. <b>Лига Индиго</b>: Новый год СССР. Бар: Три Лося, понедельник, 18 декабря, 19:30\n',
+            '2. <b>WOW Quiz/ Эйнштейн Party</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+            '3. <b>WOW Quiz/ Эйнштейн Party</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n'
+        ]
+
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        assert expectedQuizList == returnedQuizList
+
+
+    def test_filter_by_tag_nsfw(self, expected_games_2):
+        '''Проверяем что при выборе темы возвращаются только игры с тематикой 18+
+        Здесь используем отдельный набор игр, так как в локальных HTML нет игр с нужным тэгом'''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = '18+'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        expectedQuizList = [
+    '1. <b>WOW Quiz/ Эйнштейн Party</b>: Черный квиз 18+ #2. Бар: Три Лося, воскресенье, 29 января, 18:00\n',
+    '2. <b>WOW Quiz/ Эйнштейн Party</b>: 18+ #16 За гранью приличия. Бар: Три Лося, воскресенье, 19 февраля, 18:00\n'
+        ]
+
+        returnedQuizList = quizAggregator.createQuizList(expected_games_2, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        assert expectedQuizList == returnedQuizList
+
+    def test_filter_by_tag_rookie(self, expected_games_2):
+        '''Проверяем что при выборе темы возвращаются только игры с тематикой Новички
+        Здесь используем отдельный набор игр, так как в локальных HTML нет игр с нужным тэгом'''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Новички'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        expectedQuizList = [
+    '1. <b>Квиз Плиз</b>: [новички] NSK #459. Бар: Максимилианс, суббота, 28 января, 16:00\n',
+    '2. <b>Квиз Плиз</b>: [новички] NSK #459. Бар: Арт П.А.Б., воскресенье, 29 января, 16:00\n'
+    ]
+        returnedQuizList = quizAggregator.createQuizList(expected_games_2, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        assert expectedQuizList == returnedQuizList
+
+
+    @pytest.mark.parametrize('excl_bar', ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс',
+                                     'Типография', 'Руки ВВерх!'])
+    def test_by_excl_bar(self, expected_games, expected_games_2, excl_bar):
+        '''Проверяет что правильно работает исключение баров. Проверяем на двух наборах квизов,
+        так как в первом (из локальных HMTL) есть не все бары
+        '''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Оставить все'
+        excl_theme, excl_orgs = 'None', 'None'
+        returnedQuizList1 = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme, excl_bar, excl_theme, excl_orgs)
+        returnedQuizList2 = quizAggregator.createQuizList(expected_games_2, organizatorErrors, dow, selected_theme,
+                                                          excl_bar, excl_theme, excl_orgs)
+        for quiz in returnedQuizList1:
+            assert excl_bar not in quiz
+
+        for quiz in returnedQuizList2:
+            assert excl_bar not in quiz
+
+    @pytest.mark.parametrize('excl_theme', ['Классика', 'Мультимедиа', 'Новички', 'Ностальгия', '18+'])
+    def test_by_excl_theme(self, expected_games, expected_games_2, excl_theme):
+        '''Проверяет что правильно работает исключение тематик. Проверяем на двух наборах квизов,
+        так как в первом (из локальных HMTL) есть не все тематики
+        '''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Оставить все'
+        excl_bar, excl_orgs = 'None', 'None'
+        returnedQuizList1 = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                          excl_bar, excl_theme, excl_orgs)
+        returnedQuizList2 = quizAggregator.createQuizList(expected_games_2, organizatorErrors, dow, selected_theme,
+                                                          excl_bar, excl_theme, excl_orgs)
+
+        for quiz in returnedQuizList1:
+            assert excl_theme not in quiz
+
+        for quiz in returnedQuizList2:
+            assert excl_theme not in quiz
+
+    @pytest.mark.parametrize('excl_orgs', ['Квиз Плиз', 'Лига Индиго', 'WOW Quiz/ Эйнштейн Party', 'Мама Квиз'])
+    def test_by_excl_orgs(self, expected_games, excl_orgs):
+        '''Проверяет что правильно работает исключение организаторов'''
+        organizatorErrors = []
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Оставить все'
+        excl_bar, excl_theme = 'None', 'None'
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                          excl_bar, excl_theme, excl_orgs)
+
+        for quiz in returnedQuizList:
+            assert excl_orgs not in quiz
+
+
+    def test_organizator_errors(self, expected_games):
+        '''Проверяем что правильно выводятся ошибки по организаторам, при их наличии'''
+        organizatorErrors = {
+            'Квиз Плиз': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?",
+            'Лига Индиго': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?",
+            'WOW Quiz/ Эйнштейн Party': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?",
+            'Мама Квиз': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?"
+        }
+        dow = [1, 2, 3, 4, 5, 6, 7]
+        selected_theme = 'Оставить все'
+        excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
+        expectedEnding = [
+            '\nК сожалению не удалось получить информацию по следующим организаторам: ',
+            'Квиз Плиз',
+            'Лига Индиго',
+            'WOW Quiz/ Эйнштейн Party',
+            'Мама Квиз',
+            '\nПопробуй запросить информацию по ним позже.'
+        ]
+        returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
+                                                         excl_bar, excl_theme, excl_orgs)
+        assert expectedEnding == returnedQuizList[-6:]
