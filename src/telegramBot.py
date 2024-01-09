@@ -12,11 +12,6 @@
 #в первой версии использовали python-telegram-bot==20.0a0, там был синтаксис sendallquizzes(update: Update, context: CallbackContext.DEFAULT_TYPE)
 #2023-01 обновились до версии 20.0, там синтаксис start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
-from config import logger
-#импортируем наш рукописный модуль который парсит квизы, фильтрует их и присылает нам готовый list со строками которые надо отправить пользователю
-from quizAggregator import createInfoByCity, collectQuizData, createQuizList
-from dbOperations import create_connection, create_table, insert_new_user, get_user_preferences, update_user_preferences
-
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -28,7 +23,10 @@ from telegram.ext import (
     filters,
     PollAnswerHandler
 )
-from config import themes
+
+from config import logger, QUIZ_THEMES
+from quizAggregator import createInfoByCity, collectQuizData, createQuizList
+from dbOperations import create_connection, create_table, insert_new_user, get_user_preferences, update_user_preferences
 
 #это некие states которые используются далее в conv_handler, используются для навигации между функциями в зависимости от ввода пользователя
 #эта строка должна совпадать со States в ConversationHandler функции __main__. Range прописывается вручную и должен соответствовать фактическому количеству states.
@@ -102,7 +100,7 @@ async def chooseTheme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     #предлагаем выбрать пользователю только те тематики, которые он не исключал в своих preferences
     #если он ничего не исключал, то вставляем полный список themes
     if preferencesList:
-        themesCopy = themes.copy() #создаем копию списка, чтобы удалять элементы из нее
+        themesCopy = QUIZ_THEMES.copy() #создаем копию списка, чтобы удалять элементы из нее
         exclThemes = preferencesList[3] # исключенные пользователем темы хранятся в виде 'Новички;18+'
         exclThemesList = exclThemes.split(';') #преобразуем исключенные темы в список
         for excl in exclThemesList: #для каждого исключения находим его индекс в исходном списке themes и удаляем его оттуда
@@ -117,9 +115,9 @@ async def chooseTheme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             reply_inline_keyboard.append([InlineKeyboardButton(button, callback_data=button)])
         logger.info('Для пользователя %s сформировался следующий выбор тематик: %s', user.id, themesCopy)
     else:
-        for i, button in enumerate(themes):
+        for i, button in enumerate(QUIZ_THEMES):
             reply_inline_keyboard.append([InlineKeyboardButton(button, callback_data=button)])
-            logger.info('Для пользователя %s сформировался полный выбор тематик: %s', user.id, themes)
+            logger.info('Для пользователя %s сформировался полный выбор тематик: %s', user.id, QUIZ_THEMES)
     await query.edit_message_text(
         "Есть предпочтения по тематике квиза?", reply_markup=InlineKeyboardMarkup(reply_inline_keyboard),
     )
@@ -177,7 +175,7 @@ async def sendallquizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """Функция которая отправляет полный список квизов, без фильтрации"""
     user = update.message.from_user
     DOW = [1,2,3,4,5,6,7]
-    theme = themes[0] #берем нулевой элемент, 'Оставить все'
+    theme = QUIZ_THEMES[0] #берем нулевой элемент, 'Оставить все'
     logger.info("Отправляю полный список квизов пользователю %s.", user.id)
     global quizList, games, organizatorErrors, bars, organizators, links, city
     #для случая когда мы пришли не из sendquizzes и еще не делали запрос в collectQuizData()
@@ -350,18 +348,18 @@ async def excl_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def excl_theme_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.message.from_user
     poll_text = 'Выбери те тематики которые следует исключить из списка квизов.'
-    logger.debug("Предлагаем пользователю %s исключить тематики из списка %s ", user.id, str(themes))
+    logger.debug("Предлагаем пользователю %s исключить тематики из списка %s ", user.id, str(QUIZ_THEMES))
     message = await context.bot.send_poll(
         update.effective_chat.id,
         poll_text,
-        themes,
+        QUIZ_THEMES,
         is_anonymous=False,
         allows_multiple_answers=True,
     )
     # Save some info about the poll the bot_data for later use in receive_poll_answer
     payload = {
         message.poll.id: {
-            "questions": themes,
+            "questions": QUIZ_THEMES,
             "message_id": message.message_id,
             "chat_id": update.effective_chat.id,
             "answers": 0,

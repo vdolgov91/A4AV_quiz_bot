@@ -28,13 +28,18 @@
 #жмем в html-коде на нужный элемент ПКМ и Copy - Copy selector, по этому css-селектору можно обращаться к элементу
 #у bs4 есть траблы при поиске селектора по цифровому id, в таком случае используем стринговый тэг r'
 
-import requests, bs4, datetime, re
+import datetime
+import re
+
+import bs4
+import requests
+
 from config import (
     logger,
-    cityDict,
-    organizatorsDict,
-    themeMappingDict,
-    themes
+    CITY_DICT,
+    ORGANIZATORS_DICT,
+    THEME_MAPPING_DICT,
+    QUIZ_THEMES
 )
 
 #заводим словарь соответствия названия месяцев в родительном падеже порядковому номеру месяца в integer
@@ -55,25 +60,25 @@ def createInfoByCity(city):
     cityLinks = ['placeholder']
 
     # проверяем есть ли такой город в слове cityDict. Если нет, то возвращаем три пустых list-а
-    if city not in cityDict:
+    if city not in CITY_DICT:
         logger.info('Информации по квизам, проводимым в городе %s пока нет.', city)
         return [], [], []
 
     # формируем список баров в городе для создания опроса в формате
     # ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки вверх']
-    cityBars = ['Оставить все бары'] + cityDict[city]['bars']
+    cityBars = ['Оставить все бары'] + CITY_DICT[city]['bars']
 
     # формируем ссылки на сайты всех организаторов, присутствующих в городе
     # первое условие: проверяем есть ли такой ключ в словаре, второе условие: не является ли значение ключа пустым
     # если организатор присутствует в городе - формируем ссылку и добавляем его в список организаторов
 
-    for curOrg in organizatorsDict:
+    for curOrg in ORGANIZATORS_DICT:
         #словарь organizatorsDict организован в виде {'Лига Индиго': ['li','https://ligaindigo.ru/<city_tag>']}, соответственно
         #curOrg=Лига Индиго, curTag='li', curBaseUrl='https://ligaindigo.ru/<city_tag>'
-        curTag = organizatorsDict[curOrg][0]
-        curBaseUrl = organizatorsDict[curOrg][1]
-        if cityDict[city].get(curTag) != None and cityDict[city][curTag]:
-            curCityTag = cityDict[city][curTag]
+        curTag = ORGANIZATORS_DICT[curOrg][0]
+        curBaseUrl = ORGANIZATORS_DICT[curOrg][1]
+        if CITY_DICT[city].get(curTag) != None and CITY_DICT[city][curTag]:
+            curCityTag = CITY_DICT[city][curTag]
             curLink = curBaseUrl.replace('<city_tag>', curCityTag) #заменяем плэйсхолдер на тэг конкретного города
             cityLinks.append(curLink) #добавляем итоговую ссылку в лист
             cityOrganizators.append(curOrg) #добавляем название организатора в лист
@@ -88,7 +93,7 @@ def createInfoByCity(city):
 
     # добавляем к списку всероссийских организаторов местных организаторов, идут по алфавиту после всех всероссийских
     # на настоящий момент функционал не используется, заготовка на будущее
-    localOrgs = cityDict[city].get('local_organizators')
+    localOrgs = CITY_DICT[city].get('local_organizators')
     if localOrgs:
         for curDict in localOrgs:
             link = curDict.get('link')
@@ -119,8 +124,8 @@ def assignThemesToQuiz(gamename, organizator):
 
 
     # k = тематика('Классика'), themeMappingDict[k] = словарь тематики(['18+', 'чёрный квиз']), j = тэг из словаря('чёрный квиз')
-    for k in themeMappingDict: #по очереди перебираем все тематики
-         for j in themeMappingDict[k]: #перебираем все тэги внутри тематики
+    for k in THEME_MAPPING_DICT: #по очереди перебираем все тематики
+         for j in THEME_MAPPING_DICT[k]: #перебираем все тэги внутри тематики
              if j in gamename: #если нашлось вхождение тэга в название игры, то добавляем этот тэг в список
                 tags.append(k)
                 break
@@ -141,7 +146,7 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
     qpName = 'Квиз Плиз'
     if qpName in cityOrganizators:
         try:
-            orgTag = organizatorsDict[qpName][0]  # тэг организатора, например qp
+            orgTag = ORGANIZATORS_DICT[qpName][0]  # тэг организатора, например qp
             qpLink = cityLinks[cityOrganizators.index(qpName)] # ссылка находится на том же элементе массива, что и название организатора
             #print('qpLink: ' + qpLink)
             if len(localHTMLs) == 0:
@@ -267,7 +272,7 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
     liName = 'Лига Индиго'
     if liName in cityOrganizators:
         try:
-            orgTag = organizatorsDict[liName][0]  # тэг организатора, например qp
+            orgTag = ORGANIZATORS_DICT[liName][0]  # тэг организатора, например qp
             liLink = cityLinks[cityOrganizators.index(liName)]  # ссылка находится на том же элементе массива, что и название организатора
             #print('liLink: ' + liLink)
             if len(localHTMLs) == 0:
@@ -327,7 +332,7 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
     wowName = 'WOW Quiz/ Эйнштейн Party'
     if wowName in cityOrganizators:
         try:
-            orgTag = organizatorsDict[wowName][0]
+            orgTag = ORGANIZATORS_DICT[wowName][0]
             wowLink = cityLinks[cityOrganizators.index(wowName)]  # ссылка находится на том же элементе массива, что и название организатора
             #print('wowLink: ' + wowLink)
             if len(localHTMLs) == 0:
@@ -400,7 +405,7 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
     mamaName = 'Мама Квиз'
     if mamaName in cityOrganizators:
         try:
-            orgTag = organizatorsDict[mamaName][0]
+            orgTag = ORGANIZATORS_DICT[mamaName][0]
             mamaLink = cityLinks[cityOrganizators.index(mamaName)]
             #для Мама Квиза нужно добавить header User-agent, значение можно взять из своего браузера, без него вернет 403 Forbidden
             userAgent = {'User-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36'}
@@ -552,8 +557,8 @@ def createQuizList(games, organizatorErrors, dow, selected_theme, excl_bar, excl
 
     #формируем словарь вида {'qp': 'Квиз Плиз', 'li': 'Лига Индиго', 'mama': 'Мама Квиз', 'wow': 'WOW Quiz/ Эйнштейн Party'}, чтобы можно было извлекать название организатора по индексу
     organizatorIndexMapping = {}
-    for curOrgName in organizatorsDict:
-        curOrgIndex = organizatorsDict[curOrgName][0]
+    for curOrgName in ORGANIZATORS_DICT:
+        curOrgIndex = ORGANIZATORS_DICT[curOrgName][0]
         organizatorIndexMapping[curOrgIndex] = curOrgName
 
     for quizIndex in games:
@@ -584,7 +589,7 @@ def createQuizList(games, organizatorErrors, dow, selected_theme, excl_bar, excl
             continue
 
         #оставляем только ту тематику, которую пользователь явно выбрал
-        if selected_theme != themes[0] and selected_theme not in games[i]['tag']:
+        if selected_theme != QUIZ_THEMES[0] and selected_theme not in games[i]['tag']:
             continue
         #проверяем нет ли у игры доп. тематики, по которой ее все таки надо исключить. например, у игры тематики "Мультимедиа" и "Ностальгия"
         #пользователь выбрал Мультимедиа, а в исключениях у него Ностальгия. такую игру исключаем

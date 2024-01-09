@@ -25,7 +25,7 @@ class TestCreateInfoByCity:
         },
     }
 
-    @patch.dict(quizAggregator.cityDict, mockCityDict)
+    @patch.dict(quizAggregator.CITY_DICT, mockCityDict)
     def test_with_existing_city(self):
         '''Проверяет createInfoByCity если отдать на вход функции существующий моковый город'''
         expectedBars = ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!']

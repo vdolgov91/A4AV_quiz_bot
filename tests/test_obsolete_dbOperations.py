@@ -2,7 +2,7 @@
 Поодиночке часть кейсов работать не будут, так как тестовая БД не будет создана/ наполнена'''
 
 import dbOperations
-from config import dbPath
+from config import DBPATH
 
 import os
 import pytest
@@ -31,7 +31,7 @@ def test_create_new_sqlite_db(monkeypatch, temp_db_path):
     global testEngine, testConn
     monkeypatch.chdir(temp_db_path)
     testEngine, testConn = dbOperations.create_connection()
-    expected_DB_file_path = temp_db_path / dbPath[10:]
+    expected_DB_file_path = temp_db_path / DBPATH[10:]
     assert os.path.exists(expected_DB_file_path)
 
 
@@ -39,7 +39,7 @@ def test_create_new_table_in_sqlite_db(monkeypatch, temp_db_path):
     '''Проверяет создание новой таблицы в рамках тестового connection'''
     monkeypatch.chdir(temp_db_path)
     dbOperations.create_table(testEngine)
-    path_to_DB_file = temp_db_path / dbPath[10:]  # вырезаем из dbPath 'sqlite:///'
+    path_to_DB_file = temp_db_path / DBPATH[10:]  # вырезаем из dbPath 'sqlite:///'
     assert os.path.exists(path_to_DB_file) and os.path.getsize(path_to_DB_file) > 0
 
 

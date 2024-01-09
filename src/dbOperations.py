@@ -1,10 +1,13 @@
 #https://www.tutorialspoint.com/sqlalchemy/sqlalchemy_quick_guide.htm#
 #https://docs.sqlalchemy.org/en/14/orm/queryguide.html#select-statements
-import config
-from config import logger, dbPath
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String
+
 import os
+
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String
 from pathlib import Path
+
+import config
+from config import logger
 
 meta = MetaData()
 userPreferences = Table(
@@ -15,7 +18,7 @@ userPreferences = Table(
     Column('exclude_theme', String),
     Column('exclude_org', String),
 )
-def create_connection(dbPath=config.dbPath):
+def create_connection(dbPath=config.DBPATH):
     '''Функция create_connection() создает подключение к базе данных, строка подключения к БД задана в config.dbPath.
     Если в качестве СУБД используется SQLite, то создается локальный файл БД по адресу ./app_db/a4av.db.
     Если файл уже создан, осуществляется подключение к нему.'''
