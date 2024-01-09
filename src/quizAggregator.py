@@ -162,12 +162,27 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
             #элементы массива выглядят как {'class': ['schedule-column'], 'id': '40558'}
             #мы по очереди извлекаем id, записываем их как curQuizId, далее извлекаем элементы каждого квиза
             for i in range(len(qpElements)):
+                '''Id квизов в html-коде хранятся в виде '40558', но в css-селекторах id выглядят как '#\34 0558'
+                Число 34 примерно раз в полгода увеличивается на единицу, поэтому сделан цикл по подбору нужного числа:
+                если тестовый элемент извлечен и над ним можно провести реально необходимую операцию, то селектор нужный
+                и цикл прерывается (break). Если выполнение операции вылетело в Exception, то цифра инкриментируется.
+                Необходимо чтобы цикл начинался минимум с 36, потому что такое число используется в локальных файлах
+                используемых при тестировании.
+                Само id '0558' хранится в qpElements[i].attrs['id'][1:]/
+                '''
+                for selectorNum in range(36, 100):
+                    try:
+                        curQuizId = rf'#\{selectorNum} ' + qpElements[i].attrs['id'][1:]
+                        testElem = qpSoup.select(rf'{curQuizId} > div > div.h3.h3')
+                        testElem = testElem[0].get_text(strip=True)
+                        break
 
-                curQuizId = qpElements[i].attrs['id']
-                #id хранятся в виде '40558', но в css-селекторах id выглядит как '#\34 0558', поэтому мы его преобразуем в нужный вид
-                #в 2023 с #34 стал #35, потом #36
-                curQuizId = r'#\36 ' + curQuizId[1:]
+                    except Exception:
+                        selectorNum += 1
+                        continue
 
+
+                curQuizId = rf'#\{selectorNum} ' + qpElements[i].attrs['id'][1:]
                 #вытаскиваем дату проведения вида "12 июня, Воскресенье"
                 #у h3.h3 есть разные цвета, green - игра для всех, pink - игра по инвайтам
                 qpDateTime = qpSoup.select(rf'{curQuizId} > div > div.h3.h3')
@@ -214,6 +229,11 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
                 needInvite = qpSoup.select(rf'{curQuizId} > div > div.schedule-block-bottom.w-clearfix > div.game-status.schedule-end.w-clearfix > div')
                 if len(needInvite) > 0:
                     needInvite = needInvite[0].get_text(strip=True)
+
+
+
+
+
 
                 #преобразовываем дату в нужный формат
                 #regexp для квиз плиза у кого дата в формате '12 июня, Воскресенье'

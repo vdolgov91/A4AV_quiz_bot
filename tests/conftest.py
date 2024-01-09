@@ -1,16 +1,17 @@
 import datetime
 import freezegun
+import pytest
+from pathlib import Path
+import requests
+import os, sys
+from urllib.request import url2pathname
+
+# добавляем папку src в путь поиска, чтобы модули из этой папки можно было импортировать без указания их местонахождения
+sys.path.insert(1, sys.path[0] + '/src')
 
 import config
 import dbOperations
 import quizAggregator
-
-import pytest
-from pathlib import Path
-
-import requests
-import os, sys
-from urllib.request import url2pathname
 
 class LocalFileAdapter(requests.adapters.BaseAdapter):
     """Позволяет делать запрос с помощь requests в локальный html-файл
