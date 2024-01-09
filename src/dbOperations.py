@@ -1,8 +1,3 @@
-#TODO:
-#* добавить в telegramBot проверку создана ли таблица и если нет, то вызвать create_table()
-#* проверить необходимость использование контекстного менеджера with при работе с engine и connection
-
-
 #https://www.tutorialspoint.com/sqlalchemy/sqlalchemy_quick_guide.htm#
 #https://docs.sqlalchemy.org/en/14/orm/queryguide.html#select-statements
 import config
@@ -27,7 +22,7 @@ def create_connection(dbPath=config.dbPath):
 
     # проверяем наличие всех нужных папок по пути к файлу БД, если их нет - создаём
     if 'sqlite' in dbPath:
-        logger.debug(f'Запрос на создание connection до файла базы данных {dbPath} в каталоге {Path.cwd()}')
+        logger.debug(f'Запрос на создание connection до файла базы данных {dbPath} в родительском каталоге каталога {Path.cwd()}')
         lastSlashIndex = dbPath.rfind(r'/')
         dirLocation = dbPath[10:lastSlashIndex] # отрезаем 'sqlite:///' и '/a4av.db', остается имя папки
         dirPath = Path.cwd() / dirLocation
@@ -48,7 +43,7 @@ def create_table(engine):
     '''Функция для создания таблиц из объекта Meta. По умолчанию на вход передается engine, сформированный при
     импорте функции (engine, conn = create_connection().
     Для тестирования необходимо формировать новый engine и передавать на вход его'''
-    logger.debug(f'Получен запрос на создание таблицы в файле базы данных в папке {Path.cwd()} ')
+    logger.debug(f'Получен запрос на создание таблицы в файле базы данных в родительском каталоге каталога {Path.cwd()} ')
     try:
         meta.create_all(engine)
         logger.debug(f'Создана таблица {userPreferences.name}')

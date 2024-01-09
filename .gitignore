@@ -5,6 +5,6 @@
 /app_db/a4av.db
 /tests/saved_web_pages/
 
-config.py
-*.log
+/src/secrets.py
+/logs/
 

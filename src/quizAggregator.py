@@ -8,13 +8,10 @@
 #    raise BadRequest(message)
 #+telegram.error.BadRequest: Message is too long
 
-#сделать сценарии тестирования
 #сделать рефактор с учетом всех замечаний из beyond the basic stuff
-#исключить config.py из копирования в git-репозиторий, задать системные параметры через переменные среды
 #добавить Мозгобойню, Эйнштейн Пати, Угадай мелодию, Сибквиз, QuizClub, других оргов?
 #добавить получение ссылки на регистрацию
 #добавить функцию которая будет формировать список баров для нового города
-#посмотреть можно ли как-то поправить проблему с квиз плизовским селектором #\34 0558
 
 
 #для докера:
@@ -286,7 +283,6 @@ def collectQuizData(cityOrganizators, cityLinks, localHTMLs=[]):
                 # для локальной копии почему-то не работает селектор как для подключения к реальной странице
                 liGamesList = liSoup.select(r'#info > div > div > div > div > div > div > div')
 
-            logger.debug(f'liGamesList: {liGamesList}')
             #информация о наличии мест лежит в другом месте, в 0,2,4... элементах
             liGamesAvailable = liSoup.select(r'#info > div > div')
 
