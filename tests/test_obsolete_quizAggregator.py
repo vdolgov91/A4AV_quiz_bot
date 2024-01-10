@@ -6,11 +6,11 @@ from unittest.mock import patch
 
 
 class TestCreateInfoByCity:
-    '''Класс для тестирования функции quizAggregator.createInfoByCity'''
+    '''Класс для тестирования функции quizAggregator.create_info_by_city'''
     def test_with_None_input(self):
-        '''Проверяет createInfoByCity если отдать на вход функции None'''
+        '''Проверяет create_info_by_city если отдать на вход функции None'''
         expected = ([], [], [])
-        result = quizAggregator.createInfoByCity(None)
+        result = quizAggregator.create_info_by_city(None)
         assert expected == result
 
     mockCityDict = {
@@ -26,11 +26,11 @@ class TestCreateInfoByCity:
 
     @patch.dict(quizAggregator.CITY_DICT, mockCityDict)
     def test_with_existing_city(self):
-        '''Проверяет createInfoByCity если отдать на вход функции существующий моковый город'''
+        '''Проверяет create_info_by_city если отдать на вход функции существующий моковый город'''
         expectedBars = ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!']
         expectedOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз', 'WOW Quiz/ Эйнштейн Party']
         expectedLinks =  ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk', 'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
-        cityBars, cityOrganizators, cityLinks = quizAggregator.createInfoByCity('Новосибирск')
+        cityBars, cityOrganizators, cityLinks = quizAggregator.create_info_by_city('Новосибирск')
         assert expectedBars == cityBars
         assert expectedOrganizators == cityOrganizators
         assert expectedLinks == cityLinks
@@ -48,7 +48,7 @@ class TestCreateInfoByCity:
 
     @patch.dict(quizAggregator.CITY_DICT, mockCityDict)
     def test_with_existing_city_with_missing_org(self):
-        '''Проверяет createInfoByCity если отдать на вход функции существующий моковый город в котором отсутствует
+        '''Проверяет create_info_by_city если отдать на вход функции существующий моковый город в котором отсутствует
         один из организаторов из списка ORGANIZATORS_DICT (Квиз Плиз)'''
         expectedBars = ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография',
                         'Руки ВВерх!']
@@ -56,24 +56,24 @@ class TestCreateInfoByCity:
                                 'WOW Quiz/ Эйнштейн Party']
         expectedLinks = ['placeholder', 'https://ligaindigo.ru/novosibirsk',
                          'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
-        cityBars, cityOrganizators, cityLinks = quizAggregator.createInfoByCity('Новосибирск')
+        cityBars, cityOrganizators, cityLinks = quizAggregator.create_info_by_city('Новосибирск')
         assert expectedBars == cityBars
         assert expectedOrganizators == cityOrganizators
         assert expectedLinks == cityLinks
 
 
 class TestAssignThemesToQuiz:
-    '''Класс для тестирования функции quizAggregator.assignThemesToQuiz'''
+    '''Класс для тестирования функции quizAggregator.assign_themes_to_quiz'''
     def test_tag_with_None_input(self):
-        '''Проверяет передачу некорректных параметров на вход assignThemesToQuiz()'''
-        tags = quizAggregator.assignThemesToQuiz(None, None)
-        # TODO: доделать когда в функции будет обработка ошибки
+        '''Проверяет передачу некорректных параметров на вход assign_themes_to_quiz()'''
+        tags = quizAggregator.assign_themes_to_quiz(None, None)
+        assert tags is None
 
 
     @pytest.mark.parametrize('gamename', ['Игра №1 Сезон №1', 'Игра №222 Сезон №11', 'игра №3   сезона №5  '])
     def test_tag_is_classic_liga_indigo(self, gamename):
         '''Проверяет присвоение корректного тэга для названий игр Лиги Индиго'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, 'Лига Индиго')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, 'Лига Индиго')
         assert 'Классика' in tags
 
 
@@ -84,7 +84,7 @@ class TestAssignThemesToQuiz:
     @pytest.mark.parametrize('gamename', classicGames)
     def test_tag_is_classic(self, gamename):
         '''Проверяет присвоение тэга Классика для различных форматов названия игры'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, '')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, '')
         assert 'Классика' in tags
 
     notClassicGames = ['Угадай мелодию #64', 'КИНОМЬЮЗИК: НОВОГОДНИЙ #2', 'ЛОГИКА ГДЕ? #14', '[кино и музыка] NSK #93',
@@ -94,7 +94,7 @@ class TestAssignThemesToQuiz:
     @pytest.mark.parametrize('gamename', notClassicGames)
     def test_tag_is_not_classic(self, gamename):
         '''Проверяет что тэг Классика не присваивается тем играм, которым не должен'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, '')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, '')
         assert 'Классика' not in tags
 
 
@@ -108,7 +108,7 @@ class TestAssignThemesToQuiz:
     @pytest.mark.parametrize('gamename', multimediaGames)
     def test_tag_is_multimedia(self, gamename):
         '''Проверяет присвоение тэга Мультимедиа для различных форматов названия игры'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, '')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, '')
         assert 'Мультимедиа' in tags
 
 
@@ -118,7 +118,7 @@ class TestAssignThemesToQuiz:
     @pytest.mark.parametrize('gamename', notMultimediaGames)
     def test_tag_is_not_multimedia(self, gamename):
         '''Проверяет что тэг Мультимедиа не присваивается тем играм, которым не должен'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, '')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, '')
         assert 'Мультимедиа' not in tags
 
 
@@ -126,7 +126,7 @@ class TestAssignThemesToQuiz:
     @pytest.mark.parametrize('gamename', rookieGames)
     def test_tag_is_rookie(self, gamename):
         '''Проверяет присвоение тэга Новички для различных форматов названия игры'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, '')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, '')
         assert 'Новички' in tags
 
 
@@ -134,7 +134,7 @@ class TestAssignThemesToQuiz:
     @pytest.mark.parametrize('gamename', nostalgiaGames)
     def test_tag_is_nostalgia(self, gamename):
         '''Проверяет присвоение тэга Ностальгия для различных форматов названия игры'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, '')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, '')
         assert 'Ностальгия' in tags
 
 
@@ -142,7 +142,7 @@ class TestAssignThemesToQuiz:
     @pytest.mark.parametrize('gamename', nsfwGames)
     def test_tag_is_nsfw(self, gamename):
         '''Проверяет присвоение тэга 18+ для различных форматов названия игры'''
-        tags = quizAggregator.assignThemesToQuiz(gamename, '')
+        tags = quizAggregator.assign_themes_to_quiz(gamename, '')
         assert '18+' in tags
 
 
