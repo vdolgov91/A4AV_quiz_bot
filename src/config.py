@@ -80,7 +80,7 @@ ORGANIZATORS_DICT = {
     'Квиз Плиз': ['qp','https://<city_tag>.quizplease.ru/schedule'],                # https://nsk.quizplease.ru/schedule
     'Лига Индиго': ['li','https://ligaindigo.ru/<city_tag>'],                       # https://ligaindigo.ru/novosibirsk
     'Мама Квиз': ['mama','https://<city_tag>.mamaquiz.ru/'],                        # https://nchk.mamaquiz.ru/, у Новосибирска просто https://mamaquiz.ru/
-    'WOW Quiz/ Эйнштейн Party': ['wow','https://<city_tag>.wowquiz.ru/schedule']    # https://nsk.wowquiz.ru/schedule
+    'WOW Quiz': ['wow','https://<city_tag>.wowquiz.ru/schedule']                    # https://nsk.wowquiz.ru/schedule
 }
 
 # словарь с информацией о городах - какие организаторы есть, какой у этого организатора <city_tag> для формирования
@@ -94,7 +94,7 @@ CITY_DICT = {
         'qp': 'msc',                        # обозначение города в URL организатора "Квиз Плиз", например, nsk
         'li': 'moscow',                     # обозначение города в URL организатора "Лига Индиго", например, Novosibirsk
         'mama': 'tomsk',                    # обозначение города в URL организатора "Мама Квиз", например, tomsk
-        'wow': 'msc',                       # обозначение города в URL организатора "WOW Quiz/ Эйнштейн Party", например, nsk
+        'wow': 'msc',                       # обозначение города в URL организатора "WOW Quiz", например, nsk
         'local_organizators': [             # информация о местных организаторах, name - название организатора, link - ссылка на страницу с расписанием квизов
             {'name': 'ТестКвиз', 'link': 'https://don.testquiz.link/schedule'},
             {'name': 'Quiz Club Test', 'link': 'https://quizclub.link/don/schedule'}

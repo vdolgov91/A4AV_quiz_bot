@@ -79,7 +79,7 @@ def quiz_from_local_files():
     '''
     responsesDict = {}
     cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
-                        'WOW Quiz/ Эйнштейн Party']
+                        'WOW Quiz']
     cityLinks = ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk',
                  'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
 
@@ -87,7 +87,7 @@ def quiz_from_local_files():
     'Квиз Плиз': 'quizplease_schedule_2023-12-14.html',
     'Лига Индиго': 'ligaindigo_schedule_2023-12-14.html',
     'Мама Квиз': 'mamaquiz_schedule_2023-12-14.html',
-    'WOW Quiz/ Эйнштейн Party': 'wowquiz_schedule_2023-12-20.html'
+    'WOW Quiz': 'wowquiz_schedule_2023-12-20.html'
 }
     for key, value in organizatorsLinksLocal.items():
         # формируем ссылку на нужный HTML-файл сначала в формате Path, потом конвертируем в URI
@@ -108,7 +108,7 @@ def quiz_from_local_files():
 def quiz_from_real_web_sites():
     '''Запрашиваем инфорамцию по квизам с настоящих веб сайтов на время фактического запуска теста'''
     cityOrganizatorsReal = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
-                        'WOW Quiz/ Эйнштейн Party']
+                        'WOW Quiz']
     cityLinksReal = ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk',
                  'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
     gamesReal, organizatorErrorsReal = quizAggregator.collectQuizData(cityOrganizatorsReal, cityLinksReal)

@@ -28,7 +28,7 @@ class TestCreateInfoByCity:
     def test_with_existing_city(self):
         '''Проверяет create_info_by_city если отдать на вход функции существующий моковый город'''
         expectedBars = ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!']
-        expectedOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз', 'WOW Quiz/ Эйнштейн Party']
+        expectedOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз', 'WOW Quiz']
         expectedLinks =  ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk', 'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
         cityBars, cityOrganizators, cityLinks = quizAggregator.create_info_by_city('Новосибирск')
         assert expectedBars == cityBars
@@ -53,7 +53,7 @@ class TestCreateInfoByCity:
         expectedBars = ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография',
                         'Руки ВВерх!']
         expectedOrganizators = ['Оставить всех организаторов', 'Лига Индиго', 'Мама Квиз',
-                                'WOW Quiz/ Эйнштейн Party']
+                                'WOW Quiz']
         expectedLinks = ['placeholder', 'https://ligaindigo.ru/novosibirsk',
                          'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
         cityBars, cityOrganizators, cityLinks = quizAggregator.create_info_by_city('Новосибирск')
@@ -163,7 +163,7 @@ class TestCollectQuizData:
         '''Передаем на вход функции намеренно некорректную информацию по реальному организатору
         и проверяем, что получили organizatorError'''
         cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
-                        'WOW Quiz/ Эйнштейн Party']
+                        'WOW Quiz']
         cityLinks = ['placeholder', 'wrongtesturl', 'wrongtesturl', 'wrongtesturl', 'wrongtesturl']
         games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks)
         assert len(organizatorErrors) == 4
@@ -218,16 +218,16 @@ class TestCreateQuizList:
 '3. <b>Лига Индиго</b>: Новый год СССР. Бар: Три Лося, понедельник, 18 декабря, 19:30\n',
 '4. <b>Квиз Плиз</b>: Квиз, плиз! NSK #569. Бар: Арт П.А.Б., вторник, 19 декабря, 20:00\n',
 '5. <b>Квиз Плиз</b>: Квиз, плиз! NSK #570. Бар: Арт П.А.Б., четверг, 21 декабря, 20:00\n',
-'6. <b>WOW Quiz/ Эйнштейн Party</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
+'6. <b>WOW Quiz</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
 '7. <b>Мама Квиз</b>: АЛКОКВИЗ #2. Бар: MISHKIN&MISHKIN, среда, 3 января, 14:00\n',
-'8. <b>WOW Quiz/ Эйнштейн Party</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
+'8. <b>WOW Quiz</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
 '9. <b>Мама Квиз</b>: КИНОМЬЮЗИК: НОВОГОДНИЙ #2. Бар: MISHKIN&MISHKIN, четверг, 4 января, 14:00\n',
-'10. <b>WOW Quiz/ Эйнштейн Party</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
+'10. <b>WOW Quiz</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
 '11. <b>Мама Квиз</b>: ЛОГИКА ГДЕ? #14. Бар: MISHKIN&MISHKIN, пятница, 5 января, 14:00\n',
-'12. <b>WOW Quiz/ Эйнштейн Party</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+'12. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
 '13. <b>Мама Квиз</b>: КЛАССИКА #128. Бар: MISHKIN&MISHKIN, суббота, 6 января, 14:00\n',
-'14. <b>WOW Quiz/ Эйнштейн Party</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
-'15. <b>WOW Quiz/ Эйнштейн Party</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n'
+'14. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
+'15. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n'
 ]
         returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme, excl_bar, excl_theme, excl_orgs)
         assert expectedQuizList == returnedQuizList
@@ -272,7 +272,7 @@ class TestCreateQuizList:
             '1. <b>Квиз Плиз</b>: Квиз, плиз! NSK #567. Бар: Арт П.А.Б., четверг, 14 декабря, 20:00\n',
             '2. <b>Квиз Плиз</b>: Квиз, плиз! NSK #569. Бар: Арт П.А.Б., вторник, 19 декабря, 20:00\n',
             '3. <b>Квиз Плиз</b>: Квиз, плиз! NSK #570. Бар: Арт П.А.Б., четверг, 21 декабря, 20:00\n',
-            '4. <b>WOW Quiz/ Эйнштейн Party</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
+            '4. <b>WOW Quiz</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
             '5. <b>Мама Квиз</b>: КЛАССИКА #128. Бар: MISHKIN&MISHKIN, суббота, 6 января, 14:00\n'
         ]
         returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
@@ -287,12 +287,12 @@ class TestCreateQuizList:
         selected_theme = 'Мультимедиа'
         excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
         expectedQuizList = [
-            '1. <b>WOW Quiz/ Эйнштейн Party</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
+            '1. <b>WOW Quiz</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
             '2. <b>Мама Квиз</b>: КИНОМЬЮЗИК: НОВОГОДНИЙ #2. Бар: MISHKIN&MISHKIN, четверг, 4 января, 14:00\n',
-            '3. <b>WOW Quiz/ Эйнштейн Party</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
-            '4. <b>WOW Quiz/ Эйнштейн Party</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
-            '5. <b>WOW Quiz/ Эйнштейн Party</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
-            '6. <b>WOW Quiz/ Эйнштейн Party</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n'
+            '3. <b>WOW Quiz</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
+            '4. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+            '5. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
+            '6. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n'
         ]
         returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
                                                          excl_bar, excl_theme, excl_orgs)
@@ -307,8 +307,8 @@ class TestCreateQuizList:
         excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
         expectedQuizList = [
             '1. <b>Лига Индиго</b>: Новый год СССР. Бар: Три Лося, понедельник, 18 декабря, 19:30\n',
-            '2. <b>WOW Quiz/ Эйнштейн Party</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
-            '3. <b>WOW Quiz/ Эйнштейн Party</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n'
+            '2. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+            '3. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n'
         ]
 
         returnedQuizList = quizAggregator.createQuizList(expected_games, organizatorErrors, dow, selected_theme,
@@ -324,8 +324,8 @@ class TestCreateQuizList:
         selected_theme = '18+'
         excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
         expectedQuizList = [
-    '1. <b>WOW Quiz/ Эйнштейн Party</b>: Черный квиз 18+ #2. Бар: Три Лося, воскресенье, 29 января, 18:00\n',
-    '2. <b>WOW Quiz/ Эйнштейн Party</b>: 18+ #16 За гранью приличия. Бар: Три Лося, воскресенье, 19 февраля, 18:00\n'
+    '1. <b>WOW Quiz</b>: Черный квиз 18+ #2. Бар: Три Лося, воскресенье, 29 января, 18:00\n',
+    '2. <b>WOW Quiz</b>: 18+ #16 За гранью приличия. Бар: Три Лося, воскресенье, 19 февраля, 18:00\n'
         ]
 
         returnedQuizList = quizAggregator.createQuizList(expected_games_2, organizatorErrors, dow, selected_theme,
@@ -387,7 +387,7 @@ class TestCreateQuizList:
         for quiz in returnedQuizList2:
             assert excl_theme not in quiz
 
-    @pytest.mark.parametrize('excl_orgs', ['Квиз Плиз', 'Лига Индиго', 'WOW Quiz/ Эйнштейн Party', 'Мама Квиз'])
+    @pytest.mark.parametrize('excl_orgs', ['Квиз Плиз', 'Лига Индиго', 'WOW Quiz', 'Мама Квиз'])
     def test_by_excl_orgs(self, expected_games, excl_orgs):
         '''Проверяет что правильно работает исключение организаторов'''
         organizatorErrors = []
@@ -406,7 +406,7 @@ class TestCreateQuizList:
         organizatorErrors = {
             'Квиз Плиз': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?",
             'Лига Индиго': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?",
-            'WOW Quiz/ Эйнштейн Party': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?",
+            'WOW Quiz': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?",
             'Мама Квиз': "Invalid URL 'wrongtesturl': No scheme supplied. Perhaps you meant https://wrongtesturl?"
         }
         dow = [1, 2, 3, 4, 5, 6, 7]
@@ -416,7 +416,7 @@ class TestCreateQuizList:
             '\nК сожалению не удалось получить информацию по следующим организаторам: ',
             'Квиз Плиз',
             'Лига Индиго',
-            'WOW Quiz/ Эйнштейн Party',
+            'WOW Quiz',
             'Мама Квиз',
             '\nПопробуй запросить информацию по ним позже.'
         ]
