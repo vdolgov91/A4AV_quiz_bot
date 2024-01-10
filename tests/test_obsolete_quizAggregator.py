@@ -13,7 +13,6 @@ class TestCreateInfoByCity:
         result = quizAggregator.createInfoByCity(None)
         assert expected == result
 
-
     mockCityDict = {
         'Новосибирск': {
             'bars': ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!'],
@@ -31,6 +30,32 @@ class TestCreateInfoByCity:
         expectedBars = ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!']
         expectedOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз', 'WOW Quiz/ Эйнштейн Party']
         expectedLinks =  ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk', 'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
+        cityBars, cityOrganizators, cityLinks = quizAggregator.createInfoByCity('Новосибирск')
+        assert expectedBars == cityBars
+        assert expectedOrganizators == cityOrganizators
+        assert expectedLinks == cityLinks
+
+
+    mockCityDict = {
+        'Новосибирск': {
+            'bars': ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!'],
+            'li': 'novosibirsk',
+            'mama': 'nsk',
+            'wow': 'nsk',
+            'local_organizators': []
+        },
+    }
+
+    @patch.dict(quizAggregator.CITY_DICT, mockCityDict)
+    def test_with_existing_city_with_missing_org(self):
+        '''Проверяет createInfoByCity если отдать на вход функции существующий моковый город в котором отсутствует
+        один из организаторов из списка ORGANIZATORS_DICT (Квиз Плиз)'''
+        expectedBars = ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография',
+                        'Руки ВВерх!']
+        expectedOrganizators = ['Оставить всех организаторов', 'Лига Индиго', 'Мама Квиз',
+                                'WOW Quiz/ Эйнштейн Party']
+        expectedLinks = ['placeholder', 'https://ligaindigo.ru/novosibirsk',
+                         'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
         cityBars, cityOrganizators, cityLinks = quizAggregator.createInfoByCity('Новосибирск')
         assert expectedBars == cityBars
         assert expectedOrganizators == cityOrganizators
