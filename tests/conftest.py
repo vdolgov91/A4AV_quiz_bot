@@ -101,7 +101,7 @@ def quiz_from_local_files():
             responsesDict[key] = response
         else:
             raise FileExistsError(f'File {pathToLocalHTML} does not exist')
-    games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks, responsesDict)
+    games, organizatorErrors = quizAggregator.collect_quiz_data(cityOrganizators, cityLinks, responsesDict)
     return games, organizatorErrors
 
 @pytest.fixture(scope='session')
@@ -111,7 +111,7 @@ def quiz_from_real_web_sites():
                         'WOW Quiz']
     cityLinksReal = ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk',
                  'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
-    gamesReal, organizatorErrorsReal = quizAggregator.collectQuizData(cityOrganizatorsReal, cityLinksReal)
+    gamesReal, organizatorErrorsReal = quizAggregator.collect_quiz_data(cityOrganizatorsReal, cityLinksReal)
     return gamesReal, organizatorErrorsReal
 
 @pytest.fixture(scope='session')
@@ -121,6 +121,7 @@ def expected_games():
     mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
     quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
     wowquiz_schedule_2023-12-20.html - 6 (остальные резерв и должны быть отброшены)
+    Порядок организаторов должен быть в том же порядке, в каком организаторы указаны в config.ORGANIZATORS_DICT
     '''
     return {
         'qp0': {'game': 'Квиз, плиз! NSK #567', 'date': datetime.datetime(2023, 12, 14, 20, 0), 'bar': 'Арт П.А.Б.',
@@ -131,6 +132,16 @@ def expected_games():
                 'tag': ['Классика']},
         'li0': {'game': 'Новый год СССР', 'date': datetime.datetime(2023, 12, 18, 19, 30), 'bar': 'Три Лося',
                 'tag': ['Ностальгия']},
+        'mama0': {'game': 'КВИЗАНУТЫЙ НОВЫЙ ГОД 2024', 'date': datetime.datetime(2023, 12, 13, 19, 30),
+                  'bar': 'MISHKIN&MISHKIN', 'tag': []},
+        'mama1': {'game': 'АЛКОКВИЗ #2', 'date': datetime.datetime(2024, 1, 3, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+                  'tag': []},
+        'mama2': {'game': 'КИНОМЬЮЗИК: НОВОГОДНИЙ #2', 'date': datetime.datetime(2024, 1, 4, 14, 0),
+                  'bar': 'MISHKIN&MISHKIN', 'tag': ['Мультимедиа']},
+        'mama3': {'game': 'ЛОГИКА ГДЕ? #14', 'date': datetime.datetime(2024, 1, 5, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+                  'tag': []},
+        'mama4': {'game': 'КЛАССИКА #128', 'date': datetime.datetime(2024, 1, 6, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+                  'tag': ['Классика']},
         'wow5': {'game': 'Обо всём. Похмельно-новогодняя #47 ', 'date': datetime.datetime(2024, 1, 2, 16, 0),
                  'bar': 'Три Лося', 'tag': ['Классика']},
         'wow6': {'game': 'Угадай мелодию. Русское (туры по жанрам)', 'date': datetime.datetime(2024, 1, 3, 16, 0),
@@ -142,24 +153,16 @@ def expected_games():
         'wow9': {'game': 'РУсская музыка 90-х и 00-х #2', 'date': datetime.datetime(2024, 1, 6, 16, 0),
                  'bar': 'Три Лося', 'tag': ['Мультимедиа', 'Ностальгия']},
         'wow10': {'game': 'Гарри Поттер лайт #29 (с туром про рождество)', 'date': datetime.datetime(2024, 1, 7, 16, 0),
-                  'bar': 'Три Лося', 'tag': ['Мультимедиа']},
-        'mama0': {'game': 'КВИЗАНУТЫЙ НОВЫЙ ГОД 2024', 'date': datetime.datetime(2023, 12, 13, 19, 30),
-                  'bar': 'MISHKIN&MISHKIN', 'tag': []},
-        'mama1': {'game': 'АЛКОКВИЗ #2', 'date': datetime.datetime(2024, 1, 3, 14, 0), 'bar': 'MISHKIN&MISHKIN',
-                  'tag': []},
-        'mama2': {'game': 'КИНОМЬЮЗИК: НОВОГОДНИЙ #2', 'date': datetime.datetime(2024, 1, 4, 14, 0),
-                  'bar': 'MISHKIN&MISHKIN', 'tag': ['Мультимедиа']},
-        'mama3': {'game': 'ЛОГИКА ГДЕ? #14', 'date': datetime.datetime(2024, 1, 5, 14, 0), 'bar': 'MISHKIN&MISHKIN',
-                  'tag': []},
-        'mama4': {'game': 'КЛАССИКА #128', 'date': datetime.datetime(2024, 1, 6, 14, 0), 'bar': 'MISHKIN&MISHKIN',
-                  'tag': ['Классика']}
+                  'bar': 'Три Лося', 'tag': ['Мультимедиа']}
     }
 
 
 @pytest.fixture(scope='session')
 def expected_games_2():
     '''Словарь заведомо корректных игр на основании старого запроса через настоящий бот
-    Нужен для работы с тэгами 18+ и Новички, игр подходящих под такие тэги нет в сохраненных HTML-файлах'''
+    Нужен для работы с тэгами 18+ и Новички, игр подходящих под такие тэги нет в сохраненных HTML-файлах
+    Порядок организаторов должен быть в том же порядке, в каком организаторы указаны в config.ORGANIZATORS_DICT
+    '''
     return {
 'qp0': {'game': 'Квиз, плиз! NSK #458', 'date': datetime.datetime(2023, 1, 25, 20, 0), 'bar': 'Типография', 'tag': ['Классика']},
 'qp2': {'game': 'Квиз, плиз! [железные яйца] NSK #5', 'date': datetime.datetime(2023, 1, 26, 20, 0), 'bar': 'Руки ВВерх!', 'tag': ['Классика']},

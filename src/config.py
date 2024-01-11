@@ -17,7 +17,7 @@
 * добавь его название, тэг и baseUrl в ORGANIZATORS_DICT
 * добавь его во все города присутствия в словарь CITY_DICT
 * если у него есть исключения при формировании итогового URL, то пропиши их в quizAggregator.create_info_by_city()
-* добавь в quizAggregator.collectQuizData() функцию для скрейпинга HTML-страницы с расписанием игр
+* добавь в quizAggregator.collect_quiz_data() функцию для скрейпинга HTML-страницы с расписанием игр
 * пополни словарь THEME_MAPPING_DICT специфическими названиями игр организатора, чтобы корректно определять тематику
 * если тематику сложно определить с помощью словаря, то добавь regexp или другую логику в
 quizAggregator.assign_themes_to_quiz()

@@ -25,7 +25,7 @@ from telegram.ext import (
 )
 
 from config import logger, QUIZ_THEMES
-from quizAggregator import createInfoByCity, collectQuizData, createQuizList
+from quizAggregator import create_info_by_city, collect_quiz_data, createQuizList
 from dbOperations import create_connection, create_table, insert_new_user, get_user_preferences, update_user_preferences
 
 #это некие states которые используются далее в conv_handler, используются для навигации между функциями в зависимости от ввода пользователя
@@ -146,10 +146,10 @@ async def sendquiz_filtered(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
 
     if not bars and not organizators and not links: #если по ходу работы чата эти переменные еще не были получены, то делаем запрос
-        bars, organizators, links = createInfoByCity(city)
+        bars, organizators, links = create_info_by_city(city)
 
     telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList  # разбираем список на переменные для наглядности
-    games, organizatorErrors = collectQuizData(organizators, links) #получаем список игр и список ошибок
+    games, organizatorErrors = collect_quiz_data(organizators, links) #получаем список игр и список ошибок
     quizList = createQuizList(games, organizatorErrors, DOW, quizTheme, excl_bar, excl_theme, excl_orgs) #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
     if len(organizatorErrors) > 0:
         logger.error("Ошибка при запросах к следующим организаторам: " + str(organizatorErrors))
@@ -178,16 +178,16 @@ async def sendallquizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     theme = QUIZ_THEMES[0] #берем нулевой элемент, 'Оставить все'
     logger.info("Отправляю полный список квизов пользователю %s.", user.id)
     global quizList, games, organizatorErrors, bars, organizators, links, city
-    #для случая когда мы пришли не из sendquizzes и еще не делали запрос в collectQuizData()
+    #для случая когда мы пришли не из sendquizzes и еще не делали запрос в collect_quiz_data()
     #если мы пришли из sendquiz_filtered и уже делали запрос, то не нужно повторно делать запрос - это приведет к задержке в работе бота
     if not bars and not organizators and not links:  # если по ходу работы чата эти переменные еще не были получены, то делаем запрос
-        bars, organizators, links = createInfoByCity(city)
+        bars, organizators, links = create_info_by_city(city)
 
     if len(games) == 0 and len(organizatorErrors) == 0:
-        logger.info("Пользователь %s еще не запрашивал поиск квизов с фильтрами, делаем запрос collectQuizData.", user.id)
+        logger.info("Пользователь %s еще не запрашивал поиск квизов с фильтрами, делаем запрос collect_quiz_data.", user.id)
         await update.message.reply_text(
             "Дай мне минутку на подготовку списка квизов.", reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
-        games, organizatorErrors = collectQuizData(organizators, links)
+        games, organizatorErrors = collect_quiz_data(organizators, links)
         if len(organizatorErrors) > 0:
             logger.error("Ошибка при запросах к следующим организаторам: " + str(organizatorErrors))
     quizList = createQuizList(games, organizatorErrors, DOW, theme, 'None', 'None', 'None') #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
@@ -272,7 +272,7 @@ async def preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 #первый этап настроек: получаем информацию по конкретному городу и создаем опрос по исключению баров
 async def excl_bar_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global bars, organizators, links
-    bars, organizators, links = createInfoByCity(city)
+    bars, organizators, links = create_info_by_city(city)
     user = update.message.from_user
     poll_text = 'Выбери те бары, квизы в которых не будут показаны.'
     logger.debug("Предлагаем пользователю %s исключить бары из списка %s ", user.id, str(bars))
@@ -539,8 +539,8 @@ async def goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 def main() -> None:
     """Run the bot."""
     # Create the Application and pass it your bot's token.
-    from config import botToken
-    application = Application.builder().token(botToken).build()
+    from config import BOT_TOKEN
+    application = Application.builder().token(BOT_TOKEN).build()
 
     # Add conversation handler with the states THEME, DOW and LOCATION
     conv_handler = ConversationHandler(

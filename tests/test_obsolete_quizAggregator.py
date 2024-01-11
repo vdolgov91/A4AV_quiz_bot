@@ -147,14 +147,14 @@ class TestAssignThemesToQuiz:
 
 
 class TestCollectQuizData:
-    '''Класс для тестирования функции quizAggregator.collectQuizData'''
+    '''Класс для тестирования функции quizAggregator.collect_quiz_data'''
 
     def test_mock_nonexistent_org(self):
-        '''Передаем на вход функции collectQuizData несуществующего организатора'''
+        '''Передаем на вход функции collect_quiz_data несуществующего организатора'''
         cityOrganizators = ['Оставить всех организаторов', 'Тестовый организатор']
         cityLinks = ['placeholder', 'https://test.local']
         expectedGames, expectedOrganizatorErrors = {}, {}
-        games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks)
+        games, organizatorErrors = quizAggregator.collect_quiz_data(cityOrganizators, cityLinks)
         assert games == expectedGames
         assert organizatorErrors == expectedOrganizatorErrors
 
@@ -165,7 +165,7 @@ class TestCollectQuizData:
         cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
                         'WOW Quiz']
         cityLinks = ['placeholder', 'wrongtesturl', 'wrongtesturl', 'wrongtesturl', 'wrongtesturl']
-        games, organizatorErrors = quizAggregator.collectQuizData(cityOrganizators, cityLinks)
+        games, organizatorErrors = quizAggregator.collect_quiz_data(cityOrganizators, cityLinks)
         assert len(organizatorErrors) == 4
 
 
