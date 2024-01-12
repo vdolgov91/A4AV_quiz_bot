@@ -1,20 +1,34 @@
+"""
+Fixtures-функции для тестирования с помощью pytest.
+
+Содержит классы:
+    LocalFileAdapter(requests.adapters.BaseAdapter)
+Содержит функции:
+    expected_games()
+    expected_games_2
+    quiz_from_real_web_sites()
+    quiz_from_local_files()
+    temp_db_path(tmp_path_factory)
+"""
+
 import datetime
+import os
+import sys
+from pathlib import Path
+from urllib.request import url2pathname
+
 import freezegun
 import pytest
-from pathlib import Path
 import requests
-import os, sys
-from urllib.request import url2pathname
 
 # добавляем папку src в путь поиска, чтобы модули из этой папки можно было импортировать без указания их местонахождения
 sys.path.insert(1, sys.path[0] + '/src')
-
 import config
 import dbOperations
 import quizAggregator
 
 class LocalFileAdapter(requests.adapters.BaseAdapter):
-    """Позволяет делать запрос с помощь requests в локальный html-файл
+    """Позволяет делать запрос с помощь requests в локальный html-файл. Исходник:
     https://stackoverflow.com/questions/10123929/fetch-a-file-from-a-local-url-with-python-requests
     """
 
@@ -61,22 +75,20 @@ class LocalFileAdapter(requests.adapters.BaseAdapter):
         pass
 
 
-
-
 @pytest.fixture(scope='session')
 def temp_db_path(tmp_path_factory):
-    '''Создать единую для всех тестов dbOperations папку в которой создастся файл БД ./app_db/a4av.db'''
+    """Создать единую для всех тестов dbOperations папку в которой создастся файл БД ./app_db/a4av.db"""
     tmp_dir = tmp_path_factory.mktemp('tmp')
     return tmp_dir
 
 
 @pytest.fixture(scope='session')
-@freezegun.freeze_time("2023-12-13") # в качестве datetime.now() устанавливаем дату сохранения локальных HTML файлов
+@freezegun.freeze_time("2023-12-13")  # в качестве datetime.now() устанавливаем дату сохранения локальных HTML файлов
 def quiz_from_local_files():
-    '''Создаёт адаптеры для подключения модуля requests к локальным файлам html.
+    """Создаёт адаптеры для подключения модуля requests к локальным копиям веб-страниц.
     В папке /test/saved_web_pages хранятся html-страницы с расписанием игр разных организаторов.
     Функция возвращает tulpe с содержимым (games, organizatorErrors), извлеченным из локальных файлов.
-    '''
+    """
     responsesDict = {}
     cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
                         'WOW Quiz']
@@ -104,9 +116,10 @@ def quiz_from_local_files():
     games, organizatorErrors = quizAggregator.collect_quiz_data(cityOrganizators, cityLinks, responsesDict)
     return games, organizatorErrors
 
+
 @pytest.fixture(scope='session')
 def quiz_from_real_web_sites():
-    '''Запрашиваем инфорамцию по квизам с настоящих веб сайтов на время фактического запуска теста'''
+    """Запрашиваем инфорамцию по квизам с настоящих веб сайтов на время фактического запуска теста"""
     cityOrganizatorsReal = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
                         'WOW Quiz']
     cityLinksReal = ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk',
@@ -114,15 +127,16 @@ def quiz_from_real_web_sites():
     gamesReal, organizatorErrorsReal = quizAggregator.collect_quiz_data(cityOrganizatorsReal, cityLinksReal)
     return gamesReal, organizatorErrorsReal
 
+
 @pytest.fixture(scope='session')
 def expected_games():
-    '''Словарь заведомо корректных игр на основании запроса от 2023-12-13 в файлы
+    """Словарь заведомо корректных игр на основании запроса от 2023-12-13 в файлы
     ligaindigo_schedule_2023-12-14.html - 1
     mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
     quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
     wowquiz_schedule_2023-12-20.html - 6 (остальные резерв и должны быть отброшены)
     Порядок организаторов должен быть в том же порядке, в каком организаторы указаны в config.ORGANIZATORS_DICT
-    '''
+    """
     return {
         'qp0': {'game': 'Квиз, плиз! NSK #567', 'date': datetime.datetime(2023, 12, 14, 20, 0), 'bar': 'Арт П.А.Б.',
                 'tag': ['Классика']},
@@ -159,19 +173,29 @@ def expected_games():
 
 @pytest.fixture(scope='session')
 def expected_games_2():
-    '''Словарь заведомо корректных игр на основании старого запроса через настоящий бот
-    Нужен для работы с тэгами 18+ и Новички, игр подходящих под такие тэги нет в сохраненных HTML-файлах
+    """Словарь заведомо корректных игр на основании старого настоящего запроса через заведомо рабочую версию бота.
+    Нужен для работы с тэгами '18+' и 'Новички', так как игр подходящих под такие тэги нет в сохраненных HTML-файлах.
     Порядок организаторов должен быть в том же порядке, в каком организаторы указаны в config.ORGANIZATORS_DICT
-    '''
+    """
     return {
-'qp0': {'game': 'Квиз, плиз! NSK #458', 'date': datetime.datetime(2023, 1, 25, 20, 0), 'bar': 'Типография', 'tag': ['Классика']},
-'qp2': {'game': 'Квиз, плиз! [железные яйца] NSK #5', 'date': datetime.datetime(2023, 1, 26, 20, 0), 'bar': 'Руки ВВерх!', 'tag': ['Классика']},
-'qp4': {'game': '[новички] NSK #459', 'date': datetime.datetime(2023, 1, 28, 16, 0), 'bar': 'Максимилианс', 'tag': ['Классика', 'Новички']},
-'qp5': {'game': '[новички] NSK #459', 'date': datetime.datetime(2023, 1, 29, 16, 0), 'bar': 'Арт П.А.Б.', 'tag': ['Классика', 'Новички']},
-'qp6': {'game': '[кино и музыка] NSK #93', 'date': datetime.datetime(2023, 1, 29, 18, 0), 'bar': 'Максимилианс', 'tag': ['Мультимедиа']},
-'qp7': {'game': '[литература] NSK #3', 'date': datetime.datetime(2023, 1, 31, 20, 0), 'bar': 'Арт П.А.Б.', 'tag': ['Мультимедиа']},
-'li0': {'game': 'Игра №3 Сезон №7', 'date': datetime.datetime(2023, 1, 30, 19, 30), 'bar': 'Три Лося', 'tag': ['Классика']},
-'wow2': {'game': 'СССР vs 90ые!', 'date': datetime.datetime(2023, 1, 28, 16, 0), 'bar': 'Три Лося', 'tag': ['Ностальгия']},
-'wow3': {'game': 'Черный квиз 18+ #2', 'date': datetime.datetime(2023, 1, 29, 18, 0), 'bar': 'Три Лося', 'tag': ['18+']},
-'wow17': {'game': '18+ #16 За гранью приличия', 'date': datetime.datetime(2023, 2, 19, 18, 0), 'bar': 'Три Лося', 'tag': ['18+']}
+'qp0': {'game': 'Квиз, плиз! NSK #458', 'date': datetime.datetime(2023, 1, 25, 20, 0), 'bar': 'Типография',
+        'tag': ['Классика']},
+'qp2': {'game': 'Квиз, плиз! [железные яйца] NSK #5', 'date': datetime.datetime(2023, 1, 26, 20, 0),
+        'bar': 'Руки ВВерх!', 'tag': ['Классика']},
+'qp4': {'game': '[новички] NSK #459', 'date': datetime.datetime(2023, 1, 28, 16, 0), 'bar': 'Максимилианс',
+        'tag': ['Классика', 'Новички']},
+'qp5': {'game': '[новички] NSK #459', 'date': datetime.datetime(2023, 1, 29, 16, 0), 'bar': 'Арт П.А.Б.',
+        'tag': ['Классика', 'Новички']},
+'qp6': {'game': '[кино и музыка] NSK #93', 'date': datetime.datetime(2023, 1, 29, 18, 0), 'bar': 'Максимилианс',
+        'tag': ['Мультимедиа']},
+'qp7': {'game': '[литература] NSK #3', 'date': datetime.datetime(2023, 1, 31, 20, 0), 'bar': 'Арт П.А.Б.',
+        'tag': ['Мультимедиа']},
+'li0': {'game': 'Игра №3 Сезон №7', 'date': datetime.datetime(2023, 1, 30, 19, 30), 'bar': 'Три Лося',
+        'tag': ['Классика']},
+'wow2': {'game': 'СССР vs 90ые!', 'date': datetime.datetime(2023, 1, 28, 16, 0), 'bar': 'Три Лося',
+         'tag': ['Ностальгия']},
+'wow3': {'game': 'Черный квиз 18+ #2', 'date': datetime.datetime(2023, 1, 29, 18, 0), 'bar': 'Три Лося',
+         'tag': ['18+']},
+'wow17': {'game': '18+ #16 За гранью приличия', 'date': datetime.datetime(2023, 2, 19, 18, 0), 'bar': 'Три Лося',
+          'tag': ['18+']}
 }
