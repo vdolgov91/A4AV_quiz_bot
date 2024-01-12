@@ -2,14 +2,19 @@
 Модуль скрэйпинга информации о квизах с сайтов организаторов и форматировании её под требования телеграм-бота.
 
 Содержит функции:
-    assign_themes_to_quiz(gamename, organizator) - формирует для каждого квиза список соответствующих ему тематик
+    assign_themes_to_quiz(gamename, organizator) - присваивает каждому квизу список тематик
+    collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None) - собирает информацию о проводящихся в городе квизах
+    create_formatted_quiz_list(games, organizatorErrors, **kwargs) - создает итоговый список квизов для telegramBot.py
     create_info_by_city(city) - формирует информацию об организаторах, барах, ссылках на сайты для конкретного города
+    get_data_from_web_page(orgName, orgLink, localHTMLs) - делает веб-запрос страницы организатора с расписанием квизов
+    scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None) - скрейпит информацию с сайта Лига Индиго
+    scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Мама Квиз
+    scrape_quiz_please(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Квиз Плиз
+    scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams) - - скрейпит информацию с сайта Wow Quiz
 
 Содержит константы:
     DOW_DICT - словарь соответствия порядкового номера дня недели его названию (1: 'понедельник')
     MONTH_DICT - словарь соответствия названия месяца его порядковому номеру ('января': 1)
-
-TODO: Закончить docstring
 """
 
 import datetime
@@ -36,7 +41,7 @@ def create_info_by_city(city):
     Формирует набор информации, индивидуальной для города проведения - организаторы, ссылки на их сайты, бары на
     основе информации из config.CITY_DICT и config.ORGANIZATORS_DICT. Приводит информацию в нужный для модуля
     telegramBot формат.
-    На текущий момент работает только для Новосибирска, пользователь нигде не может задать другой город.
+    На текущий момент работает только для Новосибирска, пользователь бота нигде не может задать другой город.
 
     :param city (str): Название города
     :return: tuple(cityBars (list), cityOrganizators (list), cityLinks (list))
@@ -89,40 +94,43 @@ def create_info_by_city(city):
 
 def assign_themes_to_quiz(gamename, organizator):
     """
-    Формирует для каждого квиза список соответствующих ему тематик. Тематики определяются согласно словарю
+    Присваивает квизу список соответствующих ему тематик. Тематики определяются согласно словарю
     config.THEME_MAPPING_DICT и уникальным правилам, описанным внутри этой функции.
-    Например, 'Кино и музыка СССР #6' будет иметь тэги ['Мультимедиа', 'Ностальгия']
-    '[новички] NSK #459' будет иметь тэги ['Классика', 'Новички']
+    Например, 'Кино и музыка СССР #6' будут присвоены тематики ['Мультимедиа', 'Ностальгия'],
+    '[новички] NSK #459' будут присвоены тематики ['Классика', 'Новички']
 
     :param gamename (str): название квиза
     :param organizator (str): название организатора, в формате как он указан в config.ORGANIZATORS_DICT
     :return: tags (list): список тематик квиза
     """
-    # проверка корректности gamename
+    # приводим название игры к строчному регистру для последующих проверок с помощью оператора in
+    # одновременно проверяем корректность типа переменной gamename
     try:
         gamename = gamename.lower()
     except:
-        logger.debug(f'Некорректное gamename: {gamename}, должно быть str')
+        logger.error(f'Некорректное значение gamename: {gamename}, должно быть значения типа string')
         return
+
     tags = []
 
     # доп. проверка для игр с названием вида 'Игра №2 Сезон №7' у Лиги Индиго
+    # внимание, формат может периодически меняться
     if organizator == 'Лига Индиго':
-        liGameNameRegEx = re.compile(r'^[Ии]гра\s+№(\d+)\s+[Сс]езон.*')  # 'Игра №2 Сезон №7'
+        liGameNameRegEx = re.compile(r'^игра\s+№(\d+)\s+сезон.*')  # 'игра №2 сезон №7'
         mo = liGameNameRegEx.search(gamename)
         if mo != None:
             tags.append('Классика')
 
-    for k in THEME_MAPPING_DICT:  # перебираем все тематики ('Классика')
+    for k in THEME_MAPPING_DICT:          # перебираем все тематики ('Классика')
          for j in THEME_MAPPING_DICT[k]:  # перебираем все тэги внутри тематики (['18+', 'чёрный квиз'])
-             if j in gamename:  # j = тэг из словаря ('чёрный квиз')
+             if j in gamename:            # j = тэг из словаря ('чёрный квиз')
                 tags.append(k)
-                break  # прекращаем проверять другие тэги внутри уже присвоенной тематики, переходим к следующей k
+                break  # прекращаем проверять другие тэги внутри уже присвоенной тематики, переходим к следующему k
     return tags
 
 
 def get_data_from_web_page(orgName, orgLink, localHTMLs):
-    """Делает веб-запрос страницы с расписанием квиза данного организатора..
+    """Делает веб-запрос страницы с расписанием квиза данного организатора.
     Возвращает объект bs4.BeautifulSoup с HTML-кодом страницы для последующего скрейпинга.
     :param orgName (str): название организатора
     :param orgLink (str): ссылка на веб-страницу с расписанием квизов организатора в конкретном городе
@@ -151,34 +159,40 @@ def get_data_from_web_page(orgName, orgLink, localHTMLs):
     return bs4.BeautifulSoup(res.text, 'html.parser')
 
 
-def scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs={}):
+def scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None):
     """
     Функция которая скрейпит информацию с сайта Лига Индиго и возвращает список квизов и возникших ошибок.
-    :param quizSoup(bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
     :param orgName (str): имя организатора ('Лига Индиго')
     :param orgTag (str): тэг организатора ('li')
     :param dateParams (list): список временных параметров из collect_quiz_data
     :param localHTMLs (dict): для unit-тестов, словарь в котором хранятся объекты requests.get с локальных копий
                               web-страниц. Для локальной копии страницы ЛИ используется другой CSS-селектор.
-    :return: games(dict), organizatorErrors(dict)
+    :return: games (dict), organizatorErrors (dict)
     """
     games = {}
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
 
+    # нельзя использовать mutable объекты в качестве дефолтных значений параметров функции
+    # так как нам нужен localHTMLs типа dict, то переопределяем его
+    if localHTMLs is None:
+        localHTMLs = {}
+
     try:
         # по CSS-селектору нужного HTML-элемента, скопированному из браузера, bs4 ничего не находит
-        # поэтому извлекаем один из родительских элементов нужного элемента и далее ищем в нем вручную.
+        # поэтому извлекаем общий родительский элемент нужных элементов и далее ищем в нем вручную.
         # для локальной копии веб-страницы CSS-селектор почему-то отличается от селектора для реальной страницы,
         # поэтому если на вход функции из unit-тестов был передан localHTMLs, то используем селектор для локальной копии
         if len(localHTMLs) == 0:
-            liGamesList = quizSoup.select('#info > div > div > div')
+            liGamesList = quizSoup.select('#info > div > div > div')  # для настоящего сайта
         else:
-            liGamesList = quizSoup.select('#info > div > div > div > div > div > div > div')
+            liGamesList = quizSoup.select('#info > div > div > div > div > div > div > div')  # для локальной копии
 
-        # основная информация о квизах извлекается из элемента liGamesList со счётчиком i с шагом 3
-        # информация о наличии мест на игру лежит в другом элементе, в его 0,2,4... дочерних элементах
-        # поэтому эту информацию извлекаем из отдельного элемента liGamesAvailable со счётчиком k с шагом = 2
+        # основная информация о квизах содержится в 0, 1, 2 дочерних элементах элемента liGamesList, поэтому цикл
+        # по нему идет с шагом i + 3.
+        # информация о наличии мест на игру лежит в 0,2,4... дочерних элементах отдельного элемента liGamesAvailable,
+        # поэтому эту информацию извлекаем из этого элемента с отдельным счётчиком с шагом k + 2
         liGamesAvailable = quizSoup.select(r'#info > div > div')
         k = 0
 
@@ -192,16 +206,16 @@ def scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs={}):
             liDateTime = liGamesList[i + 1].text
             # преобразовываем дату проведения квиза в нужный формат
             liDateRegEx = re.compile(r'''
-                                       ^(\d|\d\d)\s         #одна или две цифры в начале строки, после пробел
-                                       ([А-Яа-я]+)\s        #месяц, после него запятая пробел
-                                       (\d{4}).*            #год и любые символы
-                                       (\d\d):(\d\d)$       #часы:минуты
+                                       ^(\d|\d\d)\s         # одна или две цифры в начале строки, после пробел
+                                       ([А-Яа-я]+)\s        # месяц, после него запятая пробел
+                                       (\d{4}).*            # год и любые символы
+                                       (\d\d):(\d\d)$       # часы:минуты
                                        ''', re.VERBOSE)
             mo = liDateRegEx.search(liDateTime)
             liDay, liMonth, liYear, liHour, liMinute = mo.groups()
             # преобразуем текстовое название месяца в цифру с помощью словаря MONTH_DICT
             liMonth = MONTH_DICT[liMonth.lower()]
-            # у Лиги Индиго указан год проведения квиза, поэтому дата формируется правильно без доп. действий
+            # у Лиги Индиго указан год проведения квиза, поэтому дата всегда формируется правильно без доп. действий
             quizDT = datetime.datetime(int(liYear), liMonth, int(liDay), int(liHour), int(liMinute))
 
             # извлекаем название площадки проведения квиза вида "Три Лося, пр. Карла Маркса, 5, Новосибирск, Россия"
@@ -215,13 +229,13 @@ def scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs={}):
             liBar = mo.group(1)
 
             # извлекаем наличие мест на игру вида: "Есть места", "Резерв", "Нет мест"
-            # !! информация извлекается из отдельного элемента liGamesAvailable с отдельным счетчиком k
+            # информация извлекается из отдельного элемента liGamesAvailable с отдельным счетчиком k
             liAvailability = liGamesAvailable[k].text
             k += 2
 
             # исключаем из выборки заведомо неподходящие квизы: где нет мест, квиз уже прошел.
             # из остального формируем словарь games
-            # после "Есть места" может быть пробел/перенос строки, поэтому проверяем с помощью in
+            # после "Есть места" может быть пробел/перенос строки, поэтому проверяем с помощью оператора in, а не ==
             if quizDT >= curDT and 'Есть места' in liAvailability:
                 games[orgTag + str(i)] = {}
                 games[orgTag + str(i)]['game'] = liGameName
@@ -239,18 +253,18 @@ def scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs={}):
 def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
     """
     Функция которая скрейпит информацию с сайта Мама Квиз и возвращает список квизов и возникших ошибок.
-    :param quizSoup(bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
     :param orgName (str): имя организатора ('Мама Квиз')
     :param orgTag (str): тэг организатора ('mama')
     :param dateParams (list): список временных параметров из collect_quiz_data
-    :return: games(dict), organizatorErrors(dict)
+    :return: games (dict), organizatorErrors (dict)
     """
     games = {}
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
 
-    # так как информация о квизах на сайте Мама Квиз не упорядочена, мы создаем ряд list-ов и добавляем
-    # на соответствующую позицию в каждый list информацию о квизе
+    # так как информация о квизах на сайте Мама Квиз не упорядочена, мы создаем ряд списков и добавляем
+    # на соответствующую позицию в каждый список информацию о квизе
     mamaGameNameList = []
     mamaGameTagList = []
     mamaDateList = []
@@ -260,9 +274,9 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
     startElementsIndexes = []
 
     try:
-        # #rec487013113 > div > div - родительский элемент где хранится вся информация о квизах.
+        # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах.
         # информация не сгруппирована по квизам, каждый элемент (дата, название, тема и т.п.) является дочерним.
-        # поэтому делаем скрейпинг эвристически:
+        # поэтому для Мама Квиз делаем скрейпинг эвристически:
         # сначала ищем элемент с числом проведения квиза, это ПОЧТИ всегда будет первый элемент информации о квизе,
         # позиции остальных элементов могут меняться, поэтому информация будет извлекаться регулярными выражениями
         mamaElements = quizSoup.select('#rec487013113 > div > div > div')
@@ -290,8 +304,8 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
             except:
                 continue
 
-        # на основе списка индексов элементов с которых начинается информация о квизе, формируем
-        # список индексов элементов на которых заканчивается информация о квизе:
+        # на основе списка индексов элементов с которых начинается информация о квизе, формируем список индексов
+        # элементов на которых заканчивается информация о квизе:
         # startElementsIndexes = [9, 29, 50, 69, 93]
         # endElementsIndexes   = [29, 50, 69, 93, 111]
         endElementsIndexes = startElementsIndexes.copy()
@@ -302,7 +316,8 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
         for x, index in enumerate(startElementsIndexes):
             # ищем информацию в диапазоне между первым элементом текущего квиза startElementsIndexes[x] + 1
             # и первым элементом следующего endElementsIndexes[x]
-            # startElementsIndexes[x] + 1 - чтобы повторно не смотреть элемент в котором заведомо лежит число проведения квиза
+            # startElementsIndexes[x] + 1 - чтобы повторно не смотреть элемент в котором заведомо лежит число
+            # проведения квиза
             for i in range(startElementsIndexes[x] + 1, endElementsIndexes[x]):
                 curElement = str(mamaElements[i])
                 tempSoup = bs4.BeautifulSoup(curElement, 'html.parser')
@@ -318,14 +333,13 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
                         # извлекаем название игры; оно пишется капсом, решеткой и номером игры, ('ТОЛЬКО СЕРИАЛЫ #1')
                         # праздничные игры пишутся капсом и заканчиваются на год, например, 'КВИЗАНУТЫЙ НОВЫЙ ГОД 2024'
                         mamaGameNameRegEx = re.compile(r'''
-                                                           ^[^а-яa-z]+        #исключаем строчные буквы
-                                                           (\#\d{1,4}|        #'решётка' и 1-4 цифры ИЛИ
-                                                            2\d\d\d)$          #2xxx год в конце названия
+                                                           ^[^а-яa-z]+        # исключаем строчные буквы
+                                                           (\#\d{1,4}|        # 'решётка' и 1-4 цифры ИЛИ
+                                                            2\d\d\d)$         # 2xxx год в конце названия
                                                         ''', re.VERBOSE)
                         mo = mamaGameNameRegEx.search(tempText)
                         if mo:
                             mamaGameName = mo.group()
-
                             # по названию игры добаляем тэг с тематикой
                             mamaGameTag = assign_themes_to_quiz(mamaGameName, orgName)
                             mamaGameNameList.append(mamaGameName)
@@ -340,8 +354,7 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
                             mamaStartingTimeList.append(mamaStartingTime)
                             continue
 
-                        # извлекаем адрес бара по вхождению 'ул.', например,
-                        # 'MISHKIN&MISHKIN (ул. Нарымская, 37)'
+                        # извлекаем адрес бара по вхождению слова 'ул.', например, 'MISHKIN&MISHKIN (ул. Нарымская, 37)'
                         if 'ул. ' in tempText:
                             tempIndex = tempText.index('(')
                             mamaBar = tempText[:tempIndex - 1]  # отрезаем адрес и пробел перед ним
@@ -354,11 +367,10 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
                             mamaMonth = MONTH_DICT[tempText]
                             mamaMonthList.append(mamaMonth)
                             continue
-
                 except:
                     continue
 
-        # получив упорядоченные листы с информацией, преобразуем ее в нужный формат и добавим в словарь games
+        # получив упорядоченные листы с информацией, преобразуем ее в нужный формат и добавляем в словарь games
         for q in range(len(mamaGameNameList)):
             mamaGameName = mamaGameNameList[q]
             mamaGameTag = mamaGameTagList[q]
@@ -396,52 +408,53 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
 def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
     """
     Функция которая скрейпит информацию с сайта Квиз Плиз и возвращает список квизов и возникших ошибок.
-    :param quizSoup(bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
     :param orgName (str): имя организатора ('Квиз Плиз')
     :param orgTag (str): тэг организатора ('qp')
     :param dateParams (list): список временных параметров из collect_quiz_data
-    :return: games(dict), organizatorErrors(dict)
+    :return: games (dict), organizatorErrors (dict)
     """
     games = {}
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
 
     try:
-        # задаем значение CSS-селектора для родительского HTML-элемента, в котором хранится информация о всех квизах
+        # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах
         qpElements = quizSoup.select('#w1 > .schedule-column')
 
         # элементы массива qpElements выглядят как {'class': ['schedule-column'], 'id': '40558'}
-        # по очереди извлекаем данные id, сохраняем их как curQuizId и извлекаем из них информацию о каждом квизе
+        # по очереди извлекаем данные id, сохраняем их как selectorBeginning и извлекаем из них информацию о каждом квизе
         for i, curElement in enumerate(qpElements):
             '''Id квизов в HTML-коде хранятся в виде '40558', но в CSS-селекторах id выглядят как '#\34 0558'
             Число 34 примерно раз в полгода увеличивается на единицу, поэтому сделан цикл по подбору нужного числа:
             если тестовый элемент извлечен и над ним можно провести реально необходимую операцию, значит подобран нужный
-            селектор и цикл прерывается. Если выполнение операции вылетело в Exception, то selectorNum инкриментируется.
+            селектор и цикл прерывается. Если выполнение операции вылетело в Exception, то selectorNum инкрементируется.
             Необходимо чтобы цикл начинался минимум с 36, потому что такое число используется в локальных файлах
-            используемых при тестировании.
+            используемых при unit-тестировании.
             Само id '0558' хранится в curElement.attrs['id'][1:]/
             '''
             for selectorNum in range(36, 100):
                 try:
-                    curQuizId = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
-                    testElem = quizSoup.select(rf'{curQuizId} > div > div.h3.h3')
+                    selectorBeginning = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
+                    testElem = quizSoup.select(rf'{selectorBeginning} > div > div.h3.h3')
                     testElem = testElem[0].get_text(strip=True)
                     break
 
                 except Exception:
                     # этот Exception не добавляется в organizatorsErrors, так как нужен только для подбора селектора
+                    # если финальная цифра цикла все равно не подойдет, то Exception произойдет далее в коде функции
                     selectorNum += 1
                     continue
 
             # формируем корректный id квиза, который будет являться префиксом для CSS-селекторов нужных элементов
-            curQuizId = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
+            selectorBeginning = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
 
             # извлекаем дату проведения квиза вида "12 июня, Воскресенье"
-            qpDateTime = quizSoup.select(f'{curQuizId} > div > div.h3.h3')
+            qpDateTime = quizSoup.select(f'{selectorBeginning} > div > div.h3.h3')
             qpDateTime = qpDateTime[0].get_text(strip=True)
 
             # извлекаем название игры
-            qpGameNameAndNum = quizSoup.select(f'{curQuizId} > div > div.schedule-block-top > a > div.h2.h2')
+            qpGameNameAndNum = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > a > div.h2.h2')
             qpGameName = qpGameNameAndNum[0].get_text(strip=True)
             qpGameNumber = qpGameNameAndNum[1].get_text(strip=True)
 
@@ -449,36 +462,36 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
             qpGameTag = assign_themes_to_quiz(qpGameName, orgName)
 
             # извлекаем название площадки проведения квиза
-            qpBar = quizSoup.select(f'{curQuizId} > div > div.schedule-block-top > div.schedule-info-block > '
+            qpBar = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > '
                                     f'div:nth-child(1) > div > div:nth-child(1) > div')
             # информация о баре 'Максимилианс' может храниться в другом элементе (div:nth-child(2)
             if len(qpBar) == 0:
-                qpBar = quizSoup.select(f'{curQuizId} > div > div.schedule-block-top > div.schedule-info-block > '
+                qpBar = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > '
                                         f'div:nth-child(2) > div > div:nth-child(1) > div')
             qpBar = qpBar[0].get_text(strip=True)
 
             # извлекаем время начала квиза вида "в 20:00"
             qpStartTime = quizSoup.select(
-                f'{curQuizId} > div > div.schedule-block-top > div.schedule-info-block > div:nth-child(2) > div > div')
+                f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > div:nth-child(2) > div > div')
             qpStartTime = qpStartTime[0].get_text(strip=True)
             # у бара 'Максимилианс' время хранится другом элементе (div:nth-child(3))
             if qpStartTime == 'Максимилианс':
-                qpStartTime = quizSoup.select(f'{curQuizId} > div > div.schedule-block-top > div.schedule-info-block > '
+                qpStartTime = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > '
                                               f'div:nth-child(3) > div > div')
                 qpStartTime = qpStartTime[0].get_text(strip=True)
-            # у Квиз Плиз время написано как "в 20:00", поэтому 2 первых символа отрезаем
+            # у Квиз Плиз время начали игры пишется в формате "в 20:00", поэтому 2 первых символа отрезаем
             qpStartTime = qpStartTime[2:]
             qpHour = int(qpStartTime[:2])
             qpMinute = int(qpStartTime[3:])
 
             # извлекаем наличие мест на игру вида: "Нет мест! Но можно записаться в резерв"/ "Осталось мало мест"
-            qpPlacesLeft = quizSoup.select(f'{curQuizId} > div > div.schedule-block-bottom > '
+            qpPlacesLeft = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom > '
                                            f'div.game-status.schedule-available.w-clearfix > div')
             if len(qpPlacesLeft) > 0:
                 qpPlacesLeft = qpPlacesLeft[0].get_text(strip=True)
 
             # извлекаем информацию о необходимости приглашения на игру
-            needInvite = quizSoup.select(f'{curQuizId} > div > div.schedule-block-bottom.w-clearfix > '
+            needInvite = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom.w-clearfix > '
                                          f'div.game-status.schedule-end.w-clearfix > div')
             if len(needInvite) > 0:
                 needInvite = needInvite[0].get_text(strip=True)
@@ -521,17 +534,18 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
 def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
     """
     Функция которая скрейпит информацию с сайта WOW Quiz и возвращает список квизов и возникших ошибок.
-    :param quizSoup(bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
     :param orgName (str): имя организатора ('WOW Quiz')
     :param orgTag (str): тэг организатора ('wow')
     :param dateParams (list): список временных параметров из collect_quiz_data
-    :return: games(dict), organizatorErrors(dict)
+    :return: games (dict), organizatorErrors (dict)
     """
     games = {}
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
 
     try:
+        # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах
         wowGamesList = quizSoup.select('body > div.wrapper > div.schelude-tabs > div.schelude-tabs-body > div > div > '
                                       'div > div > div > div.game-row > div')
         for n in range(1, (len(wowGamesList) + 1)):
@@ -567,7 +581,7 @@ def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
                                      f'div.game-item-content-right > div.game-item__address > span.place')
             wowBar = wowBar[0].text
 
-            # звлекаем наличие мест на игру видае "Места есть"/ "Резерв"
+            # извлекаем наличие мест на игру вида "Места есть"/ "Резерв"
             wowAvailability = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
                                               f'div.game-item-content-right > span')
             wowAvailability = wowAvailability[0].text
@@ -576,8 +590,8 @@ def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
             wowHour = int(wowGameStartTime[:2])
             wowMinute = int(wowGameStartTime[3:])
             wowDateRegEx = re.compile(r'''
-                                    ^(\d|\d\d)\s        #одна или две цифры в начале строки, после пробел
-                                     ([А-Яа-я]+)        #месяц
+                                    ^(\d|\d\d)\s        # одна или две цифры в начале строки, после пробел
+                                     ([А-Яа-я]+)        # месяц
                                     ''', re.VERBOSE)
             mo = wowDateRegEx.search(wowGameDate)
             wowDay, wowMonth = mo.groups()
@@ -607,7 +621,7 @@ def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
     return games, organizatorErrors
 
 
-def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs={}):
+def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
     """
     Формирует перечень квизов для конкретного города.
     Собирает информацию с сайтов всех организаторов, которые указаны для данного города в config.CITY_DICT.
@@ -630,10 +644,15 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs={}):
     curDT = datetime.datetime.now()
     dateParams = [curYear, nextYear, curMonth, curDT]
 
+    # нельзя использовать mutable объекты в качестве дефолтных значений параметров функции
+    # так как нам нужен localHTMLs типа dict, то переопределяем его
+    if localHTMLs is None:
+        localHTMLs = {}
+
+    # проверяем есть ли 'всероссийский' организатор в данном городе, если есть извлекаем информацию о его квизах
     for orgName in ORGANIZATORS_DICT:
-        # проверяем есть ли 'всероссийский' организатор в данном городе, если есть извлекаем информацию о его квизах
         if orgName in cityOrganizators:
-            orgTag = ORGANIZATORS_DICT[orgName][0]  #
+            orgTag = ORGANIZATORS_DICT[orgName][0]
             orgLink = cityLinks[cityOrganizators.index(orgName)]
             try:
                 quizSoup = get_data_from_web_page(orgName, orgLink, localHTMLs)
@@ -644,6 +663,8 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs={}):
                     organizatorErrors = {**organizatorErrors, **orgErrorsQP}
 
                 elif orgName == 'Лига Индиго':
+                    # при скрейпинге локальной копии веб-страницы у Лиги Индиго отличается CSS-селектор.
+                    # чтобы выбрать корректный селектор, передаем на вход функции доп. аргумент localHTMLs
                     gamesLI, orgErrorsLI = scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs)
                     games = {**games, **gamesLI}
                     organizatorErrors = {**organizatorErrors, **orgErrorsLI}
@@ -664,91 +685,134 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs={}):
     return games, organizatorErrors
 
 
-# функция которая делает фильтрацию по предпочтениям пользователя и преобразует список квизов в необходимый для вывода формат:
-# 1. Квиз Плиз: [новички] NSK #416. Бар: Mishkin&Mishkin, суббота, 11 июня, 16:00
-#входные параметры
-# games: список всех доступных квизов, формируется в collect_quiz_data()
-# organizatorErrors: список организаторов по которым не удалось получить информацию с сайта, формируется в collect_quiz_data(), эта информация выводится пользователю после сформированного списка игр
-# dow: выбранный в ходе чата день проведения квиза (будни/ выходные/ любой)
-# theme: выбранная в ходе чата тематика
-# excl_bar: бары, которые нужно исключить из выборки, берется из пользовательских preferences
-# excl_theme: какие тематики нужно исключить, берется из пользовательских preferences. актуальна когда в чате пользователь выбрал "любая тематика", чтобы в выводе не отображались неинтересные ему
-# excl_orgs: каких организаторов нужно исключить, берется из пользовательских preferences
+def create_formatted_quiz_list(games, organizatorErrors, **kwargs):
+    """
+    Упорядочивает квизы разных организаторов по дате проведения игры.
+    Исключает из общего списка квизы не подходящие под предпочтения пользователя.
+    Преобразует информацию в необходимый для вывода telegram-бота формат:
+    1. <b>Лига Индиго</b>: Игра №1 Сезон №11. Бар: Три Лося, понедельник, 15 января, 19:30\n'
 
-def createQuizList(games, organizatorErrors, dow, selected_theme, excl_bar, excl_theme, excl_orgs):
-    # сортируем квизы разных вендоров по дате проведения
+    :param games (dict): перечень квизов, формируется в collect_quiz_data()
+    :param organizatorErrors (dict): перечень ошибок по организаторам, скрейпинг с сайтов которых не удался
+    :param kwargs:
+        dow (list): дни проведения квиза (будни/ выходные/ любой); выбираются в ходе чата
+        selected_theme (str): тематика проведения квиза (Классика/ Мультимедиа / т.п.); выбирается в ходе чата
+        excl_bar (str): бары, которые нужно перманентно исключать из выборки; берется из пользовательских /preferences
+        excl_theme (str): тематики, которые нужно перманентно исключать; берется из пользовательских /preferences.
+        excl_orgs (str): организаторы, которых нужно перманентно исключать; берется из пользовательских /preferences
+    :return quizList (list): итоговый список квизов для отображения в telegram-боте
+    """
+
     dateList = []
     indexList = []
     quizList = []
 
-    #формируем словарь вида {'qp': 'Квиз Плиз', 'li': 'Лига Индиго', 'mama': 'Мама Квиз', 'wow': 'WOW Quiz'}, чтобы можно было извлекать название организатора по индексу
+    # извлекаем все нужные для работы функции keyword arguments из **kwargs
+    dow = kwargs.get('dow')
+    selected_theme = kwargs.get('selected_theme')
+    excl_bar = kwargs.get('excl_bar')
+    excl_theme = kwargs.get('excl_theme')
+    excl_orgs = kwargs.get('excl_orgs')
+    # если одного из обязательных аргументов нет, то выводим в лог сообщения об ошибке и возвращаем пустой список
+    if dow is None or selected_theme is None or excl_bar is None or excl_theme is None or excl_orgs is None:
+        logger.error(f'На вход функции create_formatted_quiz_list не были переданы все необходимые kwargs:'
+                     f'{kwargs}')
+        return quizList
+
+    # формируем словарь соответствия тэга организатора (содержится в элементах games) названию организатора,
+    # чтобы можно было извлекать название организатора по индексу:
+    # {'qp': 'Квиз Плиз', 'li': 'Лига Индиго', 'mama': 'Мама Квиз', 'wow': 'WOW Quiz'},
     organizatorIndexMapping = {}
     for curOrgName in ORGANIZATORS_DICT:
         curOrgIndex = ORGANIZATORS_DICT[curOrgName][0]
         organizatorIndexMapping[curOrgIndex] = curOrgName
 
+    # формируем 2 списка для их последующей синхронной сортировки:
+    # indexList - индексы квиза вида li1, wow24, qp6, по которым далее будем извлекать информацию из games
+    # dateList - даты проведения квиза, по которым далее будем сортировать оба списка
     for quizIndex in games:
-        indexList.append(quizIndex) #записываем индекс в отдельный массив, чтобы после сортировки по дате знать какой индекс соответствует этой дате
-        curGameParams = games.get(quizIndex)     #вытаскиваем параметры по текущему индексу квиза, например qp1
+        indexList.append(quizIndex)
+        curGameParams = games.get(quizIndex)
         curGameDate = curGameParams.get('date')
         dateList.append(curGameDate)
 
-    #сортируем список с индексами на основании того как мы бы отсортировали список с датами
+    # распологаем элементы списка индексов в том же порядке, в котором расположены элементы списка дат после
+    # сортировки по возрастанию
     indexList = [indexList for _,indexList in sorted(zip(dateList, indexList))]
 
-    #теперь в отсортированном порядке извлекаем из основного листа games информацию об играх
-    k = 0 # это будет счётчик квизов попавших под фильтр, далее этот номер будет использоваться для создания голосовалки
+    # извлекем из словаря games информацию в отсортированном порядке
+    k = 0 # порядковый номер квизов, попавших в итоговый вывод функции
     for i in indexList:
-        # определяем организатора, если пользователь хочет его исключить - исключаем. подставляем корректное имя организатора для вывода
-        # i это индекс вида li1, wow24, qp6, вытаскиваем regexp-ом часть без цифры и достаем название организатора из словаря organizatorIndexMapping
+        # из индекса i вида li3, regexp-ом извлекаем тэг организатора вида 'li'
+        # по тэгу извлекаем название организатора вида 'Лига Индиго'
+        # если этот организатор исключен пользователем из выборки в /preferences, то переходим к следующему шагу цикла
         orgIndexRegex = re.compile(r'^([a-zA-Z]+)(\d{1,})$')
         mo = orgIndexRegex.search(i)
-        curOrgTag = mo[1] #тэг лежит на первой позиции, ([a-zA-Z]+)
+        curOrgTag = mo[1]
         curOrgName = organizatorIndexMapping[curOrgTag]
         if curOrgName in excl_orgs:
             continue
         else:
-            organizator = '<b>' + curOrgName + '</b>' #делаем форматирование, чтобы название организатора выводилось жирным шрифтом. '<b>Квиз Плиз</b>'
+            # делаем форматирование, чтобы название организатора выводилось жирным шрифтом. '<b>Лига Индиго</b>'
+            organizator = '<b>' + curOrgName + '</b>'
 
-            # исключаем из выборки отмеченные пользователем бары. сравниваем в нижнем регистре
+        # исключаем из выборки места проведения квизов, перманентно исключенные пользователем из выборки в /preferences
         if games[i]['bar'].lower() in excl_bar.lower():
             continue
 
-        #оставляем только ту тематику, которую пользователь явно выбрал
+        # оставляем только ту тематику, которую пользователь выбрал в ходе чата
+        # если пользователь выбрал вариант 'Оставить все' (QUIZ_THEMES[0]), то ничего не исключается
         if selected_theme != QUIZ_THEMES[0] and selected_theme not in games[i]['tag']:
             continue
-        #проверяем нет ли у игры доп. тематики, по которой ее все таки надо исключить. например, у игры тематики "Мультимедиа" и "Ностальгия"
-        #пользователь выбрал Мультимедиа, а в исключениях у него Ностальгия. такую игру исключаем
-        #также если пользователь выбрал "Оставить все", то исключаем те тематики которые он исключил в preferences
-        #elif selected_theme != themes[0]:
+
+        # исключаем тематики, перманентно исключенные пользователем из выборки в /preferences.
+        # например, у игры 'Музыка СССР' есть тематики 'Мультимедиа' и 'Ностальгия'
+        # пользователь в чате выбрал 'Мультимедиа', а в исключениях у него 'Ностальгия'. такую игру исключаем.
+        # если пользователь в чате выбрал 'Оставить все', то игры с тематиками из /preferences все равно будут исключены
         else:
-            mainLoopState = False #для того чтобы прервать outer loop
+            # чтобы завершить внутренний цикл for t in games[i]['tag'] после первого же найденного совпадающего тэга
+            # и перейти к следующему шагу внешнего цикла for i in indexList используется переменная mainLoopState
+            mainLoopState = False
             for t in games[i]['tag']:
                 if t in excl_theme:
                     mainLoopState = True
-                    break #прерываем inner loop
+                    break  # прерываем inner loop
             if mainLoopState:
-                continue
+                continue  # прерываем outer loop
 
-        #извлекаем информацию о дате, отбрасываем неподходящие дни если задан параметр dow, преобразуем дату в читаемый формат
+        # извлекаем информацию о дате проведения квиза
         quizDate = games[i]['date']
         quizTime = quizDate.time()
-        quizTime = quizTime.isoformat('minutes')    #время в формате HH:MM
 
+        # преобразуем время в читаемый формат HH:MM
+        quizTime = quizTime.isoformat('minutes')
+
+        # исключаем дни недели не подходящие под выбранное пользователем значение dow
+        # например, если пользователь выбрал Выходные (dow = [6,7]), то исключаем все квизы проходящие в будние дни
         quizDOW = quizDate.isoweekday()
         if quizDOW in dow:
+            # после того как квиз прошел все возможные фильтрации и принято решение о его попадании в итоговую выборку
+            # ему присваивается уникальный порядковый номер, который будет виден в выводе telegram-бота
+            # по этому номеру можно будет создать голосование хочет ли ваша команда пойти на данную игру
             k += 1
-            #вытягиваем из словаря значение key по имеющемуся value
-            #print(list(mydict.keys())[list(mydict.values()).index(16)])
-            #https://stackoverflow.com/questions/8023306/get-key-by-value-in-dictionary
+
+            # получаем из словаря MONTH_DICT название месяца (key) по порядковому номеру месяца (value)
+            # https://stackoverflow.com/questions/8023306/get-key-by-value-in-dictionary
             quizMonth = list(MONTH_DICT.keys())[list(MONTH_DICT.values()).index(quizDate.month)]
+
+            # извлекаем из словаря DOW_DICT название дня недели по его порядковому номеру (1 - Понедельник)
             quizDOWReadable = DOW_DICT[quizDOW]
-            #приводим дату к читабельному виду "26 июня, 18:00"
+
+            # приводим дату к читаемому виду "26 июня, 18:00"
             quizDateReadable = str(quizDate.day) + ' ' + quizMonth + ', ' + quizTime
-            quizReadable = str(k) + '. ' + organizator + ': ' + games[i]['game'] + '. Бар: ' + games[i]['bar'] + ', ' + quizDOWReadable + ', ' + quizDateReadable + '\n'
+
+            # делаем итоговое форматирование строки о квизе вида:
+            # 1. <b>Лига Индиго</b>: Игра №1 Сезон №11. Бар: Три Лося, понедельник, 15 января, 19:30\n'
+            quizReadable = f"{k}. {organizator}: {games[i]['game']}. Бар: {games[i]['bar']}, {quizDOWReadable}, " \
+                           f"{quizDateReadable}\n"
             quizList.append(quizReadable)
 
-    #если при запросе информации по каким-то организаторам были ошибки - выводим пользователю это сообщение
+    # если при запросе информации по каким-то организаторам были ошибки - выводим пользователю это сообщение
     if len(organizatorErrors) > 0:
         quizList.append('\nК сожалению не удалось получить информацию по следующим организаторам: ')
         for e in organizatorErrors:

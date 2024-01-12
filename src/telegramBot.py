@@ -25,7 +25,7 @@ from telegram.ext import (
 )
 
 from config import logger, QUIZ_THEMES
-from quizAggregator import create_info_by_city, collect_quiz_data, createQuizList
+from quizAggregator import create_info_by_city, collect_quiz_data, create_formatted_quiz_list
 from dbOperations import create_connection, create_table, insert_new_user, get_user_preferences, update_user_preferences
 
 #это некие states которые используются далее в conv_handler, используются для навигации между функциями в зависимости от ввода пользователя
@@ -150,10 +150,11 @@ async def sendquiz_filtered(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList  # разбираем список на переменные для наглядности
     games, organizatorErrors = collect_quiz_data(organizators, links) #получаем список игр и список ошибок
-    quizList = createQuizList(games, organizatorErrors, DOW, quizTheme, excl_bar, excl_theme, excl_orgs) #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
+    quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=quizTheme,
+                                          excl_bar=excl_bar, excl_theme=excl_theme, excl_orgs=excl_orgs) #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
     if len(organizatorErrors) > 0:
         logger.error("Ошибка при запросах к следующим организаторам: " + str(organizatorErrors))
-    logger.info("Запускаю для пользователя %s метод createQuizList с параметрами (%s, %s, %s, %s).", user.id, games, organizatorErrors, DOW, quizTheme)
+    logger.info("Запускаю для пользователя %s метод create_formatted_quiz_list с параметрами (%s, %s, %s, %s).", user.id, games, organizatorErrors, DOW, quizTheme)
     logger.debug("Список квизов для пользователя " + str(user.id) + ": " + str(quizList))
     if len(quizList) == 0:  #длина может быть = 0 только если ничего не нашлось и пришла строка про НИКТО НЕ ПРОВОДИТ
         reply_text = '<b>НИКТО</b> НЕ ПРОВОДИТ ТАКИХ КВИЗОВ!'
@@ -190,7 +191,8 @@ async def sendallquizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         games, organizatorErrors = collect_quiz_data(organizators, links)
         if len(organizatorErrors) > 0:
             logger.error("Ошибка при запросах к следующим организаторам: " + str(organizatorErrors))
-    quizList = createQuizList(games, organizatorErrors, DOW, theme, 'None', 'None', 'None') #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
+    quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=theme,
+                                          excl_bar='None', excl_theme='None', excl_orgs='None') #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
     
     if len(quizList) == 0:  #длина может быть = 0 только если ничего не нашлось и пришла строка про НИКТО НЕ ПРОВОДИТ
         reply_text = 'ВООБЩЕ НИКТО НЕ ПРОВОДИТ КВИЗЫ В БЛИЖАЙШИЕ ДНИ!'
