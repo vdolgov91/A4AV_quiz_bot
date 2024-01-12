@@ -1,17 +1,13 @@
-#!/usr/bin/env python
-# pylint: disable=unused-argument
-# This program is dedicated to the public domain under the CC0 license.
-#https://github.com/python-telegram-bot/python-telegram-bot/blob/v20.0a0/examples/conversationbot.py
-#https://docs.python-telegram-bot.org/en/stable/examples.pollbot.html
+"""
+Модуль Telegram-бота на базе python-telegram-bot.
+Получает запросы от пользователя, возвращает пользователю информацию о проводимых в его городе квизах.
 
-#release notes
-#0.1.2 - добавляем выбор квиза по тематике "классика"/ "КиМ"...
-#GIT test
+Написан на основе примера с github разработчиков:
+# This program is dedicated to the public domain under the CC0 license
+https://github.com/python-telegram-bot/python-telegram-bot/blob/v20.0a0/examples/conversationbot.py
 
-#change logs
-#в первой версии использовали python-telegram-bot==20.0a0, там был синтаксис sendallquizzes(update: Update, context: CallbackContext.DEFAULT_TYPE)
-#2023-01 обновились до версии 20.0, там синтаксис start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
+TODO: дописать docstring про модули и классы
+"""
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -28,14 +24,26 @@ from config import logger, QUIZ_THEMES
 from quizAggregator import create_info_by_city, collect_quiz_data, create_formatted_quiz_list
 from dbOperations import create_connection, create_table, insert_new_user, get_user_preferences, update_user_preferences
 
-#это некие states которые используются далее в conv_handler, используются для навигации между функциями в зависимости от ввода пользователя
-#эта строка должна совпадать со States в ConversationHandler функции __main__. Range прописывается вручную и должен соответствовать фактическому количеству states.
-# состояния хэндлера
-INLINE_KEYBOARD_STATE, SEND, SENDALL, PREFERENCES_CHOICE, EXCL_BAR_POLL, EXCL_BAR_RESULT, EXCL_THEME_POLL, EXCL_THEME_RESULT, EXCL_ORGANIZATORS_POLL, EXCL_ORGANIZATORS_RESULT = range(10)
+# states которые используются в объекте conv_handler функции main() для навигации между пользовательскими функциями.
+# функция возвращает свой state, хэндлер по фильтрам заданным для этого state анализирует ввод пользователя и на его
+# основании принимает решение о дальнейшей маршрутизации чата.
+INLINE_KEYBOARD_STATE = 0
+SEND = 1
+SENDALL = 2
+PREFERENCES_CHOICE = 3
+EXCL_BAR_POLL = 4
+EXCL_BAR_RESULT = 5
+EXCL_THEME_POLL = 6
+EXCL_THEME_RESULT = 7
+EXCL_ORGANIZATORS_POLL = 8
+EXCL_ORGANIZATORS_RESULT = 9
 
-city = 'Новосибирск' # пока задано хардкодом, на будущее предусмотрена возможность выбора города
-                    #также не забыть перенести строку preferencesList[0] = city из функции excl_bar_result
-quizList = [] #задаются как глобальные переменные чтобы можно было использовать в разных функциях
+# город пока задан хардкодом, на будущее предусмотрена возможность выбора города пользователем
+# при доработке нужно не забыть перенести строку preferencesList[0] = city из функции excl_bar_result
+city = 'Новосибирск'
+
+# объявляем глобальные переменные
+quizList = []
 bars = []
 organizators = []
 links = []
@@ -43,27 +51,35 @@ preferencesList = []
 queryResult = ''
 games = {}
 organizatorErrors = {}
-#user is {'is_bot': False, 'username': 'v_dolgov', 'first_name': 'Vitaly', 'last_name': 'Dolgov', 'id': 1666680001, 'language_code': 'ru'}
-DOW = [] #задается как глобальная переменная чтобы можно было использовать в разных функциях
-DOWtext = '' #задается как глобальная переменная, здесь будет выбранный день недели
-theme = '' #задается как глобальная переменная, здесь будет выбранная тематика квиза
+DOW = []
+DOWtext = ''
+theme = ''
 
-#функция реагирующая на /start. здоровается и предлагает выбрать в какой день недели хотите сыграть
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Реакция на команду /start. Бот здоровается и предлагает выбрать в какой день недели хотите сыграть.
+    :return: INLINE_KEYBOARD_STATE (int)"""
     user = update.message.from_user
-    logger.info("Начинаю чат с пользователем %s", user.id)
+    logger.info(f'Начинаю чат с пользователем {user.id}')
+
+    # подготавливаем inline-клавиатуру с вариантами ответа
     reply_inline_keyboard=[
-        [InlineKeyboardButton("Любой день сойдет", callback_data="Любой день сойдет")],
-        [
-            InlineKeyboardButton("Будни", callback_data="Будни"),
-            InlineKeyboardButton("Выходные", callback_data="Выходные"),
+        # в верхнем ряду находится одна inline-кнопка
+        [InlineKeyboardButton('Любой день сойдет', callback_data='Любой день сойдет')],
+        # в нижнем ряду находятся две inline-кнопки
+        [InlineKeyboardButton('Будни', callback_data='Будни'),
+        InlineKeyboardButton('Выходные', callback_data='Выходные'),
         ]
     ]
 
     global preferencesList, queryResult
+    # делаем запрос о предпочтениях пользователя в БД, если он неуспешен, то вернет None
     queryResult = get_user_preferences(CONN, user.id)
-    if queryResult: # делаем запрос о предпочтениях пользователя в БД, если он неуспешен то вернет None и не подпадет под условие
-        preferencesList = list(queryResult) #БД возвращает tuple, переделываем его в List
+    if queryResult:
+        # БД возвращает tuple, переделываем его в List и сохраняем в глобальную переменную для дальнейшего использования
+        preferencesList = list(queryResult)
+
+    # отправляем пользователю приветственное сообщение и inline-клавиатуру с вариантами ответа
+    # приветствие выбирается в зависимости от того есть ли в БД информация о пользователе
     if preferencesList:
         await update.message.reply_text(
             f'Привет! Рад снова тебя видеть.\nВ какой день вы хотели бы сходить на игру?',
@@ -71,55 +87,63 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         )
     else:
         await update.message.reply_text(
-        f'Привет!\nТы у нас в первый раз, предлагаю пройти короткий опрос, чтобы исключить из вывода неподходящие вам места проведения, '
-        f'неинтересные тематики или нелюбимых организаторов. \nЧтобы пройти опрос отправь команду /preferences.'
-        f'\n\nЛибо можем преступить к выбору сразу: в какой день вы бы хотели сходить на игру?',
+        f'Привет!\nТы у нас в первый раз, предлагаю пройти короткий опрос, чтобы исключить из вывода неподходящие вам '
+        f'места проведения, неинтересные тематики или нелюбимых организаторов. \nЧтобы пройти опрос отправь команду '
+        f'/preferences.\n\nЛибо можем преступить к выбору сразу: в какой день вы бы хотели сходить на игру?',
         reply_markup=InlineKeyboardMarkup(reply_inline_keyboard),
     )
 
     return INLINE_KEYBOARD_STATE
 
-async def chooseTheme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    #это хэндлер типа CallbackQueryHandler для обработки ответов Inline клавиатуры, здесь пользователь и ответ достается иначе, чем в Message Handler
-    """Записываем в глобальную переменную DOW выбранные дни недели для использования в других функциях"""
+async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатываем ответ пользователя на приветственное сообщение, выбранный из вариантов inline-клавиатуры.
+    Для этого используется хэндлер типа CallbackQueryHandler. В нем ответ пользователя извлекается иначе, чем в
+    Message Handler.
+    Предлагаем пользователю выбрать тематику квизов.
+    :return: INLINE_KEYBOARD_STATE (int)"""
+
+    # ждём ответа пользователя
     query = update.callback_query
     await query.answer()
     user =  query.from_user
+
     reply_inline_keyboard = []
+
+    # Записываем в глобальные переменные DOW и DOWtext выбранные дни недели для использования в других функциях
     global DOW, DOWtext
     DOWtext = query.data
-    if DOWtext == "Будни":
+    if DOWtext == 'Будни':
         DOW = [1,2,3,4,5]
-    elif DOWtext == "Выходные":
+    elif DOWtext == 'Выходные':
         DOW = [6,7]
     else:
         DOW = [1,2,3,4,5,6,7]
 
-    logger.info("Пользователь %s выбрал день недели: %s", user.id, DOWtext)
+    logger.info(f'Пользователь {user.id} выбрал день недели: {DOWtext}')
 
-    #предлагаем выбрать пользователю только те тематики, которые он не исключал в своих preferences
-    #если он ничего не исключал, то вставляем полный список themes
+    # предлагаем пользователю выбрать интересующую его тематику из списка config.QUIZ_THEMES
+    # если в /preferences пользователя есть исключенные тематики, то исключаем их из вывода
+    themesCopy = QUIZ_THEMES.copy()  # создаем копию списка, чтобы при необходимости удалять элементы из него
     if preferencesList:
-        themesCopy = QUIZ_THEMES.copy() #создаем копию списка, чтобы удалять элементы из нее
-        exclThemes = preferencesList[3] # исключенные пользователем темы хранятся в виде 'Новички;18+'
-        exclThemesList = exclThemes.split(';') #преобразуем исключенные темы в список
-        for excl in exclThemesList: #для каждого исключения находим его индекс в исходном списке themes и удаляем его оттуда
+        exclThemes = preferencesList[3]
+        exclThemesList = exclThemes.split(';')
+        # удаляем из списка themesCopy исключенные тематики, предварительно узнав их индекс в списке
+        for excl in exclThemesList:
             if excl in themesCopy:
                 indexToDelete = themesCopy.index(excl)
                 del themesCopy[indexToDelete]
 
-        #формируем динамическую InlineKeyboard из доступных к выбору тематик
-        #[[InlineKeyboardButton(callback_data='Оставить все', text='Оставить все')], [InlineKeyboardButton(callback_data='Классика', text='Классика')], [InlineKeyboardButton(callback_data='Мультимедиа', text='Мультимедиа')], [InlineKeyboardButton(callback_data='Ностальгия', text='Ностальгия')], [InlineKeyboardButton(callback_data='18+', text='18+')], [InlineKeyboardButton(callback_data='Новички', text='Новички')]]
+    # формируем из доступных к выбору тематик динамическую InlineKeyboard вида:
+    # [[InlineKeyboardButton('Оставить все', callback_data='Оставить все')],
+    # [InlineKeyboardButton('Классика', callback_data='Классика')],
+    # [InlineKeyboardButton('Мультимедиа', callback_data='Мультимедиа')]]
+    for i, button in enumerate(themesCopy):
+        reply_inline_keyboard.append([InlineKeyboardButton(button, callback_data=button)])
+    logger.info(f'Для пользователя {user.id} сформировался следующий список тематик для выбора: {themesCopy}')
 
-        for i, button in enumerate(themesCopy):
-            reply_inline_keyboard.append([InlineKeyboardButton(button, callback_data=button)])
-        logger.info('Для пользователя %s сформировался следующий выбор тематик: %s', user.id, themesCopy)
-    else:
-        for i, button in enumerate(QUIZ_THEMES):
-            reply_inline_keyboard.append([InlineKeyboardButton(button, callback_data=button)])
-            logger.info('Для пользователя %s сформировался полный выбор тематик: %s', user.id, QUIZ_THEMES)
+    # отправляем пользователю сообщение и inline-клавиатуру с вариантами тематик
     await query.edit_message_text(
-        "Есть предпочтения по тематике квиза?", reply_markup=InlineKeyboardMarkup(reply_inline_keyboard),
+        'Есть предпочтения по тематике квиза?', reply_markup=InlineKeyboardMarkup(reply_inline_keyboard),
     )
     return INLINE_KEYBOARD_STATE
 
@@ -137,7 +161,7 @@ async def sendquiz_filtered(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not preferencesList:
         logger.info('Для пользователя %s еще нет значений preferenceList, присваиваем значения по умолчанию. Функция sendquiz_filtered', user.id)
         preferencesList = [user.id, city, 'None', 'None', 'None']
-    quizTheme = query.data #тема квиза будет равна той кнопке, которую пользователь нажал в chooseTheme
+    quizTheme = query.data #тема квиза будет равна той кнопке, которую пользователь нажал в choose_theme
     reply_end = 'Напоминаю, что согласно твоим предпочтениям часть игр могла быть скрыта из результатов поиска.\nОтправь команду /all если хочешь посмотреть полный список квизов.\nОтправь команду /preferences, чтобы изменить свои предпочтения.'
     logger.info("Пользователь %s выбрал следующую тематику: %s", user.id, theme)
     logger.info("Отправляю фильтрованный список квизов пользователю %s.", user.id)
@@ -549,8 +573,9 @@ def main() -> None:
         entry_points=[CommandHandler("start", start)],
         states={
             INLINE_KEYBOARD_STATE: [
-                CallbackQueryHandler(chooseTheme, pattern="^(Будни|Выходные|Любой день сойдет)$"),
-                CallbackQueryHandler(sendquiz_filtered, pattern="^(Оставить все|Классика|Мультимедиа|Ностальгия|18\+|Новички)$"),
+                CallbackQueryHandler(choose_theme, pattern="^(Будни|Выходные|Любой день сойдет)$"),
+                CallbackQueryHandler(sendquiz_filtered,
+                                     pattern="^(Оставить все|Классика|Мультимедиа|Ностальгия|18\+|Новички)$"),
             ],
             SEND: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
                    MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
@@ -574,16 +599,16 @@ def main() -> None:
             EXCL_ORGANIZATORS_RESULT: [MessageHandler(filters.Regex("^Завершить настройку"), save_preferences),
                    MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)]
             },
-        fallbacks=[CommandHandler("all", sendallquizzes), CommandHandler("bye", goodbye), CommandHandler("preferences", preferences)],
+        fallbacks=[CommandHandler("all", sendallquizzes), CommandHandler("bye", goodbye),
+                   CommandHandler("preferences", preferences)],
         allow_reentry=True, #для того чтобы можно было заново вернуться в entry_points
         per_chat=False #для того чтобы можно было обрабатывать ответы на опрос
     )
     application.add_handler(conv_handler)
-    #application.add_handler(CallbackQueryHandler(button))
     # Run the bot until the user presses Ctrl-C
     application.run_polling()
 
 if __name__ == "__main__":
-    ENGINE, CONN = create_connection() # создаем объекты Engine и Connect к файлу базы данных
-    create_table(ENGINE) # создаем нужные таблицы (если еще не были созданы)
+    ENGINE, CONN = create_connection()  # создаем объекты Engine и Connect к базе данных
+    create_table(ENGINE)  # создаем нужные таблицы (если еще не были созданы)
     main()
