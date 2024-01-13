@@ -30,20 +30,22 @@ from dbOperations import create_connection, create_table, insert_new_user, get_u
 # основании принимает решение о дальнейшей маршрутизации чата.
 INLINE_KEYBOARD_SENT_TO_USER = 0
 QUIZ_LIST_SENT_TO_USER = 1
-SENDALL = 2
-PREFERENCES_CHOICE = 3
-EXCL_BAR_POLL = 4
-EXCL_BAR_RESULT = 5
-EXCL_THEME_POLL = 6
-EXCL_THEME_RESULT = 7
-EXCL_ORGANIZATORS_POLL = 8
-EXCL_ORGANIZATORS_RESULT = 9
+PREFERENCES_CHOICE_MENU = 2
+EXCL_BAR_POLL = 3
+EXCL_BAR_RESULT = 4
+EXCL_THEME_POLL = 5
+EXCL_THEME_RESULT = 6
+EXCL_ORGANIZATORS_POLL = 7
+EXCL_ORGANIZATORS_RESULT = 8
 
 # город пока задан хардкодом, на будущее предусмотрена возможность выбора города пользователем
 # при доработке нужно не забыть перенести строку preferencesList[0] = city из функции excl_bar_result
 city = 'Новосибирск'
 
-# объявляем глобальные переменные, значения которых будут изменяться внутри функций async
+# так как возможен разный порядок прохождения по веткам бота, то неизвестно была ли собрана нужная для работы текущей
+# ветки информация. чтобы не делать повторяющиеся запросы в каждой ветке, запрос делается один раз и его результат
+# сохранятеся в глобальные переменные. остальные функции берут данные из глобальных переменных, а не из повторного
+# запроса
 quizList = []
 bars = []
 organizators = []
@@ -287,45 +289,59 @@ async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return QUIZ_LIST_SENT_TO_USER
 
 async def create_poll_on_selected_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Sends a predefined poll"""
+    """Реакция на ввод пользоватем порядкового номера квиза из сформированного списка.
+    Создает опрос по выбранному квизу и завершает работу бота.
+    :return: ConversationHandler.END
+    """
     global quizList
+
+    # извлекаем информацию из ответа пользователя
     user = update.message.from_user
-    logger.info("Пользователь %s отправил %s в качестве номера квиза", user.id, update.message.text)
-    quizIndex = int(update.message.text) - 1 # минус 1 т.к лист считается с нуля, а список выданный пользователю с единицы
+    logger.info(f'Пользователь {user.id} отправил {update.message.text} в качестве номера квиза')
+
+    # на вход функции пропускается любое число из одного или двух символов (^(\d|\d\d)$)
+    # проверяем что пользователь ввел корректный номер квиза.
+    # например, если пользователю вывели 10 квизов, то введенное им число должно быть от 1 до 10.
+    # пользователь выбирал индекс из диапазона 1:N, а в list диапазон индексов 0:N, поэтому вычитаем 1
+    quizIndex = int(update.message.text) - 1
     if quizIndex in range(len(quizList)):
-        #найдется строка вида '3. <b>WOW Quiz</b>: Угадай кино #17. Бар: Три Лося, воскресенье, 12 июня, 18:00'
-        #строковыми переменными убираем оттуда лишнее
+        # формируем заголовок опроса. убираем HTML-тэги и порядковый номер игры из строки вида
+        # '3. <b>WOW Quiz</b>: Угадай кино #17. Бар: Три Лося, воскресенье, 12 июня, 18:00'
+        # получаем строку вида:
+        # 'WOW Quiz: Угадай кино #17. Бар: Три Лося, воскресенье, 12 июня, 18:00'
         quizInfo = quizList[quizIndex]
         quizInfo = quizInfo.replace('<b>', '')
         quizInfo = quizInfo.replace('</b>', '')
         dotIndex = quizInfo.find('.')
         quizInfo = quizInfo[dotIndex + 2:]
-        
+
+        # варианты ответов в опросе
         questions = ["Иду", "Не иду", "Мнусь"]
+
+        # создаем опрос, не анонимный, множественный выбор отсутствует
+        # результаты опроса бот не обрабатывает
         message = await context.bot.send_poll(
             update.effective_chat.id,
             quizInfo,
             questions,
             is_anonymous=False,
-            allows_multiple_answers=True,
+            allows_multiple_answers=False,
         )
-        # Save some info about the poll the bot_data for later use in receive_poll_answer
-        payload = {
-            message.poll.id: {
-                "questions": questions,
-                "message_id": message.message_id,
-                "chat_id": update.effective_chat.id,
-                "answers": 0,
-            }
-        }
-        logger.info("Пользователь %s создал опрос: %s.", user.id, quizInfo)
+        logger.info(f'Пользователь {user.id} создал опрос: {quizInfo}.')
+
+        # отправляем пользователю сообщение об окончании работы бота
         await update.message.reply_text(
-        'Хорошей игры! На сим откланиваюсь. Чтобы запустить меня заново нажми /start.', reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
-        context.bot_data.update(payload)
+        'Хорошей игры! На сим откланиваюсь. Чтобы запустить меня заново нажми /start.',
+            reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
+
     else:
+        # отправляем пользователю сообщение об окончании работы бота
         await update.message.reply_text(
-        'Такой цифры не было! Чтобы запустить меня заново нажми /start.' , reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
-        logger.info("Пользователь %s отправил неправильный аргумент %s в качестве порядкового номера квиза и мы с ним попрощались", user.id, update.message.text)
+        'Такой цифры не было! Чтобы запустить меня заново нажми /start.',
+            reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
+        logger.info(f'Пользователь {user.id} отправил неправильный аргумент {update.message.text} в качестве '
+                    f'порядкового номера квиза и мы с ним попрощались')
+
     return ConversationHandler.END
 
 #стартовая страница изменения настроек
@@ -348,7 +364,7 @@ async def preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(reply_text, reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="Что делаем с настройками?"
         ), parse_mode='HTML')
-    return PREFERENCES_CHOICE
+    return PREFERENCES_CHOICE_MENU
 
 #первый этап настроек: получаем информацию по конкретному городу и создаем опрос по исключению баров
 async def excl_bar_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -634,11 +650,9 @@ def main() -> None:
             ],
             QUIZ_LIST_SENT_TO_USER: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
                                      MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            #SENDALL: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
-            #       MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            PREFERENCES_CHOICE: [MessageHandler(filters.Regex("^Да"), excl_bar_poll),
-                                 MessageHandler(filters.Regex("^Нет"), start),
-                                MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            PREFERENCES_CHOICE_MENU: [MessageHandler(filters.Regex("^Да"), excl_bar_poll),
+                                      MessageHandler(filters.Regex("^Нет"), start),
+                                      MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
             # для выбора города сделать переход из PREFERENCES_CHOICES в новое состояние SELECT_CITY
             # не забыть убрать захардкоженное значение city = "Новосибирск"
             EXCL_BAR_POLL: [PollAnswerHandler(excl_bar_result),
@@ -656,8 +670,8 @@ def main() -> None:
             },
         fallbacks=[CommandHandler("all", send_all_quizzes), CommandHandler("bye", goodbye),
                    CommandHandler("preferences", preferences)],
-        allow_reentry=True, #для того чтобы можно было заново вернуться в entry_points
-        per_chat=False #для того чтобы можно было обрабатывать ответы на опрос
+        allow_reentry=True,  # для того чтобы можно было заново вернуться в entry_points
+        per_chat=False  # для того чтобы можно было обрабатывать ответы на опрос
     )
     application.add_handler(conv_handler)
     # Run the bot until the user presses Ctrl-C
