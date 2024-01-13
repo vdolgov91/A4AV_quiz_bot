@@ -7,6 +7,7 @@
 https://github.com/python-telegram-bot/python-telegram-bot/blob/v20.0a0/examples/conversationbot.py
 
 TODO: дописать docstring про модули и классы
+TODO: описать словами логику работы бота
 """
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -27,8 +28,8 @@ from dbOperations import create_connection, create_table, insert_new_user, get_u
 # states которые используются в объекте conv_handler функции main() для навигации между пользовательскими функциями.
 # функция возвращает свой state, хэндлер по фильтрам заданным для этого state анализирует ввод пользователя и на его
 # основании принимает решение о дальнейшей маршрутизации чата.
-INLINE_KEYBOARD_STATE = 0
-SEND = 1
+INLINE_KEYBOARD_SENT_TO_USER = 0
+QUIZ_LIST_SENT_TO_USER = 1
 SENDALL = 2
 PREFERENCES_CHOICE = 3
 EXCL_BAR_POLL = 4
@@ -42,7 +43,7 @@ EXCL_ORGANIZATORS_RESULT = 9
 # при доработке нужно не забыть перенести строку preferencesList[0] = city из функции excl_bar_result
 city = 'Новосибирск'
 
-# объявляем глобальные переменные
+# объявляем глобальные переменные, значения которых будут изменяться внутри функций async
 quizList = []
 bars = []
 organizators = []
@@ -51,13 +52,15 @@ preferencesList = []
 queryResult = ''
 games = {}
 organizatorErrors = {}
-DOW = []
-DOWtext = ''
+DOW = []  # дни недели порядковыми номерами дня, для фильтрации списка квизов в модуле quizAggregator
+DOWtext = ''  # дни недели словами, для вывода пользователю информации какие фильтры он применил
 theme = ''
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Реакция на команду /start. Бот здоровается и предлагает выбрать в какой день недели хотите сыграть.
-    :return: INLINE_KEYBOARD_STATE (int)"""
+    """
+    Реакция на команду /start. Бот здоровается и предлагает выбрать в какой день недели хотите сыграть.
+    :return: INLINE_KEYBOARD_SENT_TO_USER (int)
+    """
     user = update.message.from_user
     logger.info(f'Начинаю чат с пользователем {user.id}')
 
@@ -93,14 +96,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         reply_markup=InlineKeyboardMarkup(reply_inline_keyboard),
     )
 
-    return INLINE_KEYBOARD_STATE
+    return INLINE_KEYBOARD_SENT_TO_USER
 
 async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Обрабатываем ответ пользователя на приветственное сообщение, выбранный из вариантов inline-клавиатуры.
-    Для этого используется хэндлер типа CallbackQueryHandler. В нем ответ пользователя извлекается иначе, чем в
-    Message Handler.
-    Предлагаем пользователю выбрать тематику квизов.
-    :return: INLINE_KEYBOARD_STATE (int)"""
+    """
+    Обрабатывает ответ пользователя на приветственное сообщение, выбранный из вариантов inline-клавиатуры.
+    Предлагает пользователю выбрать тематику квизов.
+    :return: INLINE_KEYBOARD_SENT_TO_USER (int)
+    """
 
     # ждём ответа пользователя
     query = update.callback_query
@@ -145,91 +148,143 @@ async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await query.edit_message_text(
         'Есть предпочтения по тематике квиза?', reply_markup=InlineKeyboardMarkup(reply_inline_keyboard),
     )
-    return INLINE_KEYBOARD_STATE
+    return INLINE_KEYBOARD_SENT_TO_USER
 
-async def sendquiz_filtered(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # это хэндлер типа CallbackQueryHandler для обработки ответов Inline клавиатуры, здесь пользователь и ответ достается иначе, чем в Message Handler
-    """Записываем в глобальную переменную DOW выбранные дни недели для использования в других функциях"""
+async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Обрабатывает ответ пользователя на вопрос о тематике квиза, выбранный из вариантов inline-клавиатуры.
+    Отправляет пользователю отфильтрованный список квизов, с учетом выбранных им в ходе чата днях проведения и
+    тематики, а также перманентных исключениях по тематикам/ организаторам/ барам, указанных в /preferences.
+    :return: QUIZ_LIST_SENT_TO_USER (int)
+    """
+    global DOW, DOWtext, theme, quizList, games, organizatorErrors, bars, organizators, links, city, preferencesList
+
+    # ждём ответа пользователя и сохраняем его
     query = update.callback_query
     await query.answer()
     user = query.from_user
-    global DOW, theme
-    global DOWtext #текстовое название, для вывода пользователю информации какие фильтры он применил
-    theme = query.data #текстовое название, для вывода в логи
-    global quizList, games, organizatorErrors, bars, organizators, links, city, preferencesList
-    # если в preferencesList нет значений, то вставляем дефолтные значения. Если значения есть, то предлагаем только те тематики, которры
+    theme = query.data
+
+    # если у пользователя еще нет /preferences, то присваиваем дефолтные значения - не исключаем из вывода ничего
     if not preferencesList:
-        logger.info('Для пользователя %s еще нет значений preferenceList, присваиваем значения по умолчанию. Функция sendquiz_filtered', user.id)
+        logger.info(f'Для пользователя {user.id} еще нет значений preferenceList, присваиваем значения по умолчанию. '
+                    f'Функция send_filtered_quiz')
         preferencesList = [user.id, city, 'None', 'None', 'None']
-    quizTheme = query.data #тема квиза будет равна той кнопке, которую пользователь нажал в choose_theme
-    reply_end = 'Напоминаю, что согласно твоим предпочтениям часть игр могла быть скрыта из результатов поиска.\nОтправь команду /all если хочешь посмотреть полный список квизов.\nОтправь команду /preferences, чтобы изменить свои предпочтения.'
-    logger.info("Пользователь %s выбрал следующую тематику: %s", user.id, theme)
-    logger.info("Отправляю фильтрованный список квизов пользователю %s.", user.id)
+
+    logger.info(f'Пользователь {user.id} выбрал следующую тематику: {theme}')
+    logger.info(f'Готовлю фильтрованный список квизов пользователю {user.id}.')
+
+    # так как скрейпинг сайтов с расписаниями квизов занимает порядка 10 секунд, то выводим пользователю сообщение с
+    # просьбой подождать, чтобы он не думал что бот завис. Оно исчезнет, когда бот пришлет расписание квизов.
     await query.edit_message_text(
-        "Дай мне минутку на подготовку списка квизов.", parse_mode='HTML'
+        'Дай мне минутку на подготовку списка квизов.', parse_mode='HTML'
     )
 
-    if not bars and not organizators and not links: #если по ходу работы чата эти переменные еще не были получены, то делаем запрос
+    # если в ходе работы бота значения переменных с информацией, специфической для города проведения еще не были
+    # получены, то запрашиваем их
+    if not bars and not organizators and not links:
         bars, organizators, links = create_info_by_city(city)
 
-    telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList  # разбираем список на переменные для наглядности
-    games, organizatorErrors = collect_quiz_data(organizators, links) #получаем список игр и список ошибок
-    quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=quizTheme,
-                                          excl_bar=excl_bar, excl_theme=excl_theme, excl_orgs=excl_orgs) #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
+    # получаем полный неформатированный список квизов и список ошибок по отдельным организаторам
+    games, organizatorErrors = collect_quiz_data(organizators, links)
     if len(organizatorErrors) > 0:
-        logger.error("Ошибка при запросах к следующим организаторам: " + str(organizatorErrors))
-    logger.info("Запускаю для пользователя %s метод create_formatted_quiz_list с параметрами (%s, %s, %s, %s).", user.id, games, organizatorErrors, DOW, quizTheme)
-    logger.debug("Список квизов для пользователя " + str(user.id) + ": " + str(quizList))
-    if len(quizList) == 0:  #длина может быть = 0 только если ничего не нашлось и пришла строка про НИКТО НЕ ПРОВОДИТ
+        logger.error(f'Ошибка при запросах к следующим организаторам: {organizatorErrors}')
+
+    # получаем фильтрованный форматированный для вывода бота список квизов, с учетом выбора пользователя в ходе чата
+    # (желаемые дни проведения, интересующая тематика) и перманентых /preferences пользователя (какие бары, тематики и
+    # организаторов нужно исключать из вывода всегда)
+    telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList
+    logger.debug(f'Запускаю для пользователя {user.id} метод create_formatted_quiz_list с параметрами (games:{games}, '
+                f'organizatorErrors: {organizatorErrors}, DOW: {DOW}, selected_theme: {theme}, excl_bar: {excl_bar}, '
+                f'excl_theme: {excl_theme}, excl_orgs: {excl_orgs}.')
+    quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=theme,
+                                          excl_bar=excl_bar, excl_theme=excl_theme, excl_orgs=excl_orgs)
+    logger.debug(f'Список квизов для пользователя {user.id}: {quizList}')
+
+    # формируем сообщение для отправки пользователю, в зависимости от количества найденных квизов
+    # текст отформатирован с использованием HTML-разметки.
+    # TODO: существует ограничение по количеству символов, добавить обработку этой ситуации
+    if len(quizList) == 0:
         reply_text = '<b>НИКТО</b> НЕ ПРОВОДИТ ТАКИХ КВИЗОВ!'
-        logger.info("Для пользователя %s не вернулось ни одного квиза под данный фильтр", user.id)
+        logger.info(f'Для пользователя {user.id} не вернулось ни одного квиза под данный фильтр')
     else:
         reply_text = f'<u>Вот квизы, которые пройдут в {DOWtext.lower()} по тематике {theme}:</u>\n'
-        for i in range(len(quizList)):
-            reply_text += quizList[i] + '\n'
-        reply_text += '\nОтправь мне порядковый номер понравившейся игры и я создам голосовалку. Если дело происходит в группе, то ответь на мое сообщение, чтобы я понял что ты обращаещься ко мне. \n'
+        for i, curQuiz in enumerate(quizList):
+            reply_text += curQuiz + '\n'
+        reply_text += '\nОтправь мне порядковый номер понравившейся игры и я создам голосовалку. Если дело ' \
+                      'происходит в группе, то ответь на мое сообщение, чтобы я понял что ты обращаещься ко мне. \n'
+    reply_end = 'Напоминаю, что согласно твоим предпочтениям часть игр могла быть скрыта из результатов поиска.\n' \
+                'Отправь команду /all если хочешь посмотреть полный список квизов.\nОтправь команду /preferences, ' \
+                'чтобы изменить свои предпочтения.'
     reply_text += '\n' + reply_end
 
+    # отправляем пользователю сообщение с отфильтрованным списком квизов
     await query.edit_message_text(
         reply_text, parse_mode='HTML'
     )
 
-    return SEND
+    return QUIZ_LIST_SENT_TO_USER
 
-async def sendallquizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Функция которая отправляет полный список квизов, без фильтрации"""
-    user = update.message.from_user
-    DOW = [1,2,3,4,5,6,7]
-    theme = QUIZ_THEMES[0] #берем нулевой элемент, 'Оставить все'
-    logger.info("Отправляю полный список квизов пользователю %s.", user.id)
+async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Реакция на команду /all.
+    Отправляет пользователю полный список найденных квизов, без учетов выбраных в ходе чата дней недели/ тематики и
+    перманентных настроек пользователя по исключению баров/ тематик/ организаторов из /preferences.
+    Из вывода исключаются только квизы на которые нет мест и игры по приглашению (инвайту).
+    :return: QUIZ_LIST_SENT_TO_USER (int)
+    """
     global quizList, games, organizatorErrors, bars, organizators, links, city
-    #для случая когда мы пришли не из sendquizzes и еще не делали запрос в collect_quiz_data()
-    #если мы пришли из sendquiz_filtered и уже делали запрос, то не нужно повторно делать запрос - это приведет к задержке в работе бота
-    if not bars and not organizators and not links:  # если по ходу работы чата эти переменные еще не были получены, то делаем запрос
+
+    user = update.message.from_user
+    logger.info(f'Отправляю полный список квизов пользователю {user.id}.')
+
+    # если в ходе работы бота значения переменных с информацией, специфической для города проведения, еще не были
+    # получены, то запрашиваем их
+    if not bars and not organizators and not links:
         bars, organizators, links = create_info_by_city(city)
 
-    if len(games) == 0 and len(organizatorErrors) == 0:
-        logger.info("Пользователь %s еще не запрашивал поиск квизов с фильтрами, делаем запрос collect_quiz_data.", user.id)
+    # если бот уже был в функции send_filtered_quiz и делал скрейпинг сайтов организаторов функцией collect_quiz_data,
+    # то не делаем эту операцию повторно.
+    if not games and not organizatorErrors:
+        logger.info(f'Пользователь {user.id} еще не запрашивал поиск квизов с фильтрами, делаем запрос '
+                    f'collect_quiz_data().')
+        # так как скрейпинг сайтов с расписаниями квизов занимает порядка 10 секунд, то выводим пользователю сообщение с
+        # просьбой подождать, чтобы он не думал что бот завис. Оно исчезнет, когда бот пришлет расписание квизов.
         await update.message.reply_text(
-            "Дай мне минутку на подготовку списка квизов.", reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
+            'Дай мне минутку на подготовку списка квизов.', reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
+        # получаем полный неформатированный список квизов и список ошибок по отдельным организаторам
         games, organizatorErrors = collect_quiz_data(organizators, links)
         if len(organizatorErrors) > 0:
-            logger.error("Ошибка при запросах к следующим организаторам: " + str(organizatorErrors))
+            logger.error(f'Ошибка при запросах к следующим организаторам: {organizatorErrors}')
+
+    # получаем форматированный для вывода бота полный список квизов
+    # задаем значения переменных исключающих любую фильтрацию
+    DOW = [1, 2, 3, 4, 5, 6, 7]
+    theme = QUIZ_THEMES[0]  # 'Оставить все'
     quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=theme,
-                                          excl_bar='None', excl_theme='None', excl_orgs='None') #отдаем на вход список игр, желаемы дни проведения и тематику и получаем готовое текстовое сообщение с инфой о всех подходящих квизах
-    
-    if len(quizList) == 0:  #длина может быть = 0 только если ничего не нашлось и пришла строка про НИКТО НЕ ПРОВОДИТ
+                                          excl_bar='None', excl_theme='None', excl_orgs='None')
+
+    # формируем сообщение для отправки пользователю, в зависимости от количества найденных квизов
+    # текст отформатирован с использованием HTML-разметки.
+    # TODO: существует ограничение по количеству символов, добавить обработку этой ситуации
+    if len(quizList) == 0:
         reply_text = 'ВООБЩЕ НИКТО НЕ ПРОВОДИТ КВИЗЫ В БЛИЖАЙШИЕ ДНИ!'
-        logger.warning("Не вернулось ни одного квиза при запросе без фильтров для пользователя %s. Это потенциальная ошибка.", user.id)
+        logger.warning(f'Не вернулось ни одного квиза при запросе без фильтров для пользователя {user.id}. Это '
+                       f'потенциальная ошибка.')
     else:
         reply_text = '<u>Вот все квизы которые я нашел:</u>\n'
-        for i in range(len(quizList)):
-            reply_text += quizList[i] + '\n'
-        reply_text += '\nОтправь мне порядковый номер понравившейся игры и я создам голосовалку. Если дело происходит в группе, то ответь на мое сообщение, чтобы я понял что ты обращаещься ко мне.\nПомни, что даже с отключенными фильтрами я не отображаю информацию о квизах, где есть запись только в резерв и о квизах участие в которых возможно только по приглашениям.'
-    
+        for i, curQuiz in enumerate(quizList):
+            reply_text += curQuiz + '\n'
+        reply_text += '\nОтправь мне порядковый номер понравившейся игры и я создам голосовалку. Если дело происходит ' \
+                      'в группе, то ответь на мое сообщение, чтобы я понял что ты обращаещься ко мне.\nПомни, что ' \
+                      'даже с отключенными фильтрами я не отображаю информацию о квизах, где есть запись только ' \
+                      'в резерв и о квизах участие в которых возможно только по приглашениям.'
+
+    # отправляем пользователю сообщение с отфильтрованным списком квизов
     await update.message.reply_text(
         reply_text, reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
-    return SENDALL
+
+    return QUIZ_LIST_SENT_TO_USER
 
 async def create_poll_on_selected_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
@@ -572,15 +627,15 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            INLINE_KEYBOARD_STATE: [
+            INLINE_KEYBOARD_SENT_TO_USER: [
                 CallbackQueryHandler(choose_theme, pattern="^(Будни|Выходные|Любой день сойдет)$"),
-                CallbackQueryHandler(sendquiz_filtered,
+                CallbackQueryHandler(send_filtered_quiz,
                                      pattern="^(Оставить все|Классика|Мультимедиа|Ностальгия|18\+|Новички)$"),
             ],
-            SEND: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
-                   MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            SENDALL: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
-                   MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            QUIZ_LIST_SENT_TO_USER: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
+                                     MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            #SENDALL: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
+            #       MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
             PREFERENCES_CHOICE: [MessageHandler(filters.Regex("^Да"), excl_bar_poll),
                                  MessageHandler(filters.Regex("^Нет"), start),
                                 MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
@@ -599,7 +654,7 @@ def main() -> None:
             EXCL_ORGANIZATORS_RESULT: [MessageHandler(filters.Regex("^Завершить настройку"), save_preferences),
                    MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)]
             },
-        fallbacks=[CommandHandler("all", sendallquizzes), CommandHandler("bye", goodbye),
+        fallbacks=[CommandHandler("all", send_all_quizzes), CommandHandler("bye", goodbye),
                    CommandHandler("preferences", preferences)],
         allow_reentry=True, #для того чтобы можно было заново вернуться в entry_points
         per_chat=False #для того чтобы можно было обрабатывать ответы на опрос
