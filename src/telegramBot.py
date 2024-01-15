@@ -426,10 +426,6 @@ async def exclude_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE)
     :return: EXCLUDE_BAR_RESULT (int)
     """
     global city, preferencesList
-    if not preferencesList:
-        preferencesList = [user.id, city, 'None', 'None', 'None']
-    else:
-        preferencesList[1] = city  # пока добавляем захардкоженный city здесь, потом надо перенести в новую функцию
 
     # получаем информацию о результатах опроса
     user = update.poll_answer.user
@@ -447,11 +443,13 @@ async def exclude_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # увеличиваем счётчик проголосовавших и закрываем опрос
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
-    
-    # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
-    reply_keyboard = [['Выбрать тематики']]
-    
-    # вариант 'Оставить все бары' хранится на нулевом индексе списка, если он был выбран, то ничего не исключаем
+
+    if not preferencesList:
+        preferencesList = [user.id, city, 'None', 'None', 'None']
+    else:
+        preferencesList[1] = city  # пока добавляем захардкоженный city здесь, потом надо перенести в новую функцию
+
+    # вариант 'Оставить все бары' хранится в 0-м индексе списка, если он был выбран, то ничего не исключаем
     if 0 in selected_options:
         logger.info(f'Пользователь {user.id} выбрал опцию "Оставить все бары"')
         preferencesList[2] = 'None'
@@ -469,6 +467,8 @@ async def exclude_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE)
         preferencesList[2] = excluded_bars 
         reply_text = 'Запомню твои предпочтения по барам. Теперь жми "Выбрать тематики".'
 
+    # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
+    reply_keyboard = [['Выбрать тематики']]
     # отправляем пользователю сообщение
     await context.bot.send_message(
             answered_poll["chat_id"],
@@ -491,7 +491,7 @@ async def exclude_theme_poll(update: Update, context: ContextTypes.DEFAULT_TYPE)
     logger.debug(f'Предлагаем пользователю {user.id} исключить тематики из списка {QUIZ_THEMES}')
 
     # создаем опрос, не анонимный, с множественным выбором, в качестве возможных ответов - тематики из QUIZ.themes
-    poll_text = 'Выбери те тематики которые следует исключить из списка квизов.'
+    poll_text = 'Выбери тематики, которые следует исключить из списка квизов.'
     message = await context.bot.send_poll(
         update.effective_chat.id,
         poll_text,
@@ -538,10 +538,7 @@ async def exclude_theme_result(update: Update, context: ContextTypes.DEFAULT_TYP
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
 
-    # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
-    reply_keyboard = [['Выбрать организаторов']]
-
-    # вариант 'Оставить все тематики' хранится на нулевом индексе списка, если он был выбран, то ничего не исключаем
+    # вариант 'Оставить все тематики' хранится в 0-м индексе списка, если он был выбран, то ничего не исключаем
     if 0 in selected_options:
         logger.info(f'Пользователь {user.id} выбрал опцию "Оставить все тематики"')
         preferencesList[3] = 'None'
@@ -559,6 +556,8 @@ async def exclude_theme_result(update: Update, context: ContextTypes.DEFAULT_TYP
         preferencesList[3] = excluded_themes
         reply_text = 'Запомню твои предпочтения по тематикам. Теперь жми "Выбрать организаторов".'
 
+    # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
+    reply_keyboard = [['Выбрать организаторов']]
     # отправляем пользователю сообщение
     await context.bot.send_message(
         answered_poll["chat_id"],
@@ -568,12 +567,20 @@ async def exclude_theme_result(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return EXCLUDE_THEME_RESULT
 
-#третий этап настроек: создаем опрос по исключению организаторов
+
 async def exclude_organizators_poll(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Третий шаг настройки предпочтений пользователя по команде /preferences.
+    Создает опрос, позволяющий перманентно исключать из выборки квизы неинтересных пользователю организаторов.
+    :return: EXCLUDE_ORGANIZATORS_POLL (int)
+    """
     global organizators
+
     user = update.message.from_user
+    logger.debug(f'Предлагаем пользователю {user.id} исключить организаторов из списка {organizators}')
+
+    # создаем опрос, не анонимный, с множественным выбором, в качестве возможных ответов - организаторы в этом городе
     poll_text = 'Выбери организаторов, чьи игры следует исключить из списка.'
-    logger.debug("Предлагаем пользователю %s исключить организаторов из списка %s ", user.id, str(organizators))
     message = await context.bot.send_poll(
         update.effective_chat.id,
         poll_text,
@@ -581,7 +588,8 @@ async def exclude_organizators_poll(update: Update, context: ContextTypes.DEFAUL
         is_anonymous=False,
         allows_multiple_answers=True,
     )
-    # Save some info about the poll the bot_data for later use in receive_poll_answer
+
+    # сохраняем контекстную информацию о созданном опросе для дальнейшего использованияr
     payload = {
         message.poll.id: {
             "questions": organizators,
@@ -591,114 +599,138 @@ async def exclude_organizators_poll(update: Update, context: ContextTypes.DEFAUL
         }
     }
     context.bot_data.update(payload)
+
     return EXCLUDE_ORGANIZATORS_POLL
 
-#обрабатываем результаты запроса по исключению организаторов
-#https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
+
 async def exclude_organizators_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.poll_answer.user
-    answer = update.poll_answer
-    answered_poll = context.bot_data[answer.poll_id]
-    reply_keyboard = [['Завершить настройку']]
+    """
+    Обрабатывает результаты опроса по исключению организаторов, пройденного пользователем.
+    :return: EXCLUDE_THEME_RESULT (int)
+    """
     global preferencesList
-    selected_options = answer.option_ids #индексы выбранных пользователем вариантов ответов
+
+    # получаем информацию о результатах опроса
+    user = update.poll_answer.user
+    selected_options = update.poll_answer.option_ids  # индексы выбранных пользователем вариантов ответов
+    answered_poll = context.bot_data[update.poll_answer.poll_id]  # id опроса
+
+    # обработка ошибки, когда пользователь ответил на какой-то старый опрос вместо нужного. дословно из примера:
+    # this means this poll answer update is from an old poll, we can't do our answering then
     try:
-        poll_options = answered_poll["questions"] #варианты ответов в списке вида ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки вверх']
-        # this means this poll answer update is from an old poll, we can't do our answering then
+        poll_options = answered_poll["questions"] # варианты ответов из пройденного опроса
     except KeyError:
+        debug.error(f'Ошибка обработки результатов опроса по организаторам у пользователя {user.id}')
         return
 
-    # Close poll after one participants voted
+    # увеличиваем счётчик проголосовавших и закрываем опрос
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
 
-    #команда Оставить все тематики должна всегда быть первой в списке, тогда ее индекс будет = 0
+    # вариант 'Оставить всех организаторов' хранится в 0-м индексе списка, если он был выбран, то ничего не исключаем
     if 0 in selected_options:
-        logger.info('Пользователь %s выбрал опцию "Оставить всех организаторов"', user.id)
+        logger.info(f'Пользователь {user.id} выбрал опцию "Оставить всех организаторов"')
         preferencesList[4] = 'None'
-
-        await context.bot.send_message(
-            answered_poll["chat_id"],
-            'Оставляю в выборке всех организаторов. Теперь жми "Завершить настройку".',
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,)
-        )
+        reply_text = 'Оставляю в выборке всех организаторов. Теперь жми "Завершить настройку".'
     else:
-        answer_string = ""
+        exclude_organizators = ""
         for option_id in selected_options:
-            #условие чтобы не ставить ; после последнего из баров
+            #  чтобы не ставить ; после последнего из организаторов
             if option_id != selected_options[-1]:
-                answer_string += poll_options[option_id] + ";"
+                exclude_organizators += poll_options[option_id] + ";"
             else:
-                answer_string += poll_options[option_id]
-        logger.info('Пользователь %s исключил следующих организаторов: %s', user.id, answer_string)
-        preferencesList[4] = answer_string #записываем получившуюся строку вида 'Ностальгические;18+' в список предпочтений
-        await context.bot.send_message(
-            answered_poll["chat_id"],
-            'Запомню твои предпочтения по организаторам. Теперь жми "Завершить настройку".',
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, )
-        )
+                exclude_organizators += poll_options[option_id]
+        logger.info(f'Пользователь {user.id} исключил следующих организаторов: {exclude_organizators}')
+        # записываем получившуюся строку вида 'Лига Индиго;Квиз Плиз' в список предпочтений
+        preferencesList[4] = exclude_organizators
+        reply_text = 'Запомню твои предпочтения по организаторам. Теперь жми "Завершить настройку".'
+
+    # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
+    reply_keyboard = [['Завершить настройку']]
+    # отправляем пользователю сообщение
+    await context.bot.send_message(
+        answered_poll["chat_id"],
+        reply_text,
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, )
+    )
+
     return EXCLUDE_ORGANIZATORS_RESULT
 
-#4 этап: сохраняем настройки в базу данных
+
 async def save_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
+    """
+    Финальный шаг настройки предпочтений пользователя по команде /preferences.
+    Сохраняет настройки пользователя в базу данных и завершает работу бота.
+    Присылает пользователю сообщение о необходимости повторного запуска бота командой /start.
+    :return: None
+    """
     global preferencesList, queryResult
-    telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList #разбираем список на переменные для наглядности
+    telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList
 
-    #если queryResult что-то вернул, то надо делать UPDATE. если не вернул - то INSERT
+    user = update.message.from_user
+
+    # если SELECT по пользователю что-то вернул, то для записи настроек используем UPDATE, если не вернул - то INSERT
     if queryResult:
-        # при удачном апдейте функция возвращает True, при неудачной False
         if update_user_preferences(CONN, user.id, city, excl_bar, excl_theme, excl_orgs):
-            logger.info('Пользователь %s обновил свои предпочтения', user.id)
-            await update.message.reply_text(
-                'Твои настройки обновлены! Теперь нажми команду /start, чтобы приступить к поиску квизов.',
-                reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
-            )
+            logger.info(f'Пользователь {user.id} обновил свои предпочтения')
+            message = 'Твои настройки обновлены! Теперь нажми команду /start, чтобы приступить к поиску квизов.'
         else:
-            logger.error('Пользователь %s не смог обновить свои предпочтения', user.id)
-            await update.message.reply_text(
-                'К сожалению сейчас не удается обновить твои настройки, попробуй позже.\nЧтобы приступить к поиску квизов нажми команду /start.',
-                reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
-            )
-
+            logger.error(f'Пользователь {user.id} не смог обновить свои предпочтения')
+            message = 'К сожалению сейчас не удается обновить твои настройки, попробуй позже.\nЧтобы приступить к ' \
+                      'поиску квизов нажми команду /start.',
     else:
-        #при удачной вставке функция возвращает True, при неудачной False
         if insert_new_user(CONN, user.id, city, excl_bar, excl_theme, excl_orgs):
-            logger.info('Пользователь %s сохранил свои предпочтения в базу данных', user.id)
-            await update.message.reply_text(
-                'Твои настройки сохранены! Теперь нажми команду /start, чтобы приступить к поиску квизов.',
-                reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
-            )
+            logger.info(f'Пользователь {user.id} сохранил свои предпочтения в базу данных')
+            message = 'Твои настройки сохранены! Теперь нажми команду /start, чтобы приступить к поиску квизов.'
         else:
-            logger.error('Пользователь %s не смог сохранить свои предпочтения в базу данных', user.id)
-            await update.message.reply_text(
-                'К сожалению сейчас не удается сохранить твои настройки, попробуй позже.\nЧтобы приступить к поиску квизов нажми команду /start.',
-                reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
-            )
+            logger.error(f'Пользователь {user.id} не смог сохранить свои предпочтения в базу данных')
+            message = 'К сожалению сейчас не удается сохранить твои настройки, попробуй позже.\nЧтобы приступить к ' \
+                      'поиску квизов нажми команду /start.'
+
+    # отправляем пользователю сообщение
+    await update.message.reply_text(
+        message,
+        reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
+    )
+
 
 async def badbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Завершение чата в случае ошибки"""
     user = update.message.from_user
-    logger.info("Badbye. Прощаюсь с пользователем %s, так как он отправил неправильный аргумент %s", user.id, update.message.text)
+    logger.info(f'Badbye. Прощаюсь с пользователем {user.id}, так как он отправил неправильный аргумент '
+                f'{update.message.text}')
+
+    # отправляем пользователю сообщение
     await update.message.reply_text(
-        'Вы ввели что-то не то. Гудбай, молодой человек! Чтобы запустить меня заново нажми /start', reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
+        'Вы ввели что-то не то. Гудбай, молодой человек! Чтобы запустить меня заново нажми /start',
+        reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
     )
+
     return ConversationHandler.END
 
 async def goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Удачное завершение чата"""
     user = update.message.from_user
-    logger.info("Прощаюсь с пользователем %s, так как он успешно завершил обслуживание.", user.id)
+    logger.info(f'Прощаюсь с пользователем {user.id}, так как он успешно завершил обслуживание.')
+
+    # отправляем пользователю сообщение
     await update.message.reply_text(
-        'Я закончил свою работу. Чтобы запустить меня заново нажми /start', reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
+        'Я закончил свою работу. Чтобы запустить меня заново нажми /start',
+        reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
     )
+
     return ConversationHandler.END
 
 def main():
-    """Run the bot."""
-    # Create the Application and pass it your bot's token.
+    """Запускает telegram-бот."""
+    # создаем объект класса Application, на вход передаем токен нашего бота
     from config import BOT_TOKEN
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Add conversation handler with the states THEME, DOW and LOCATION
+    # добавляем в объект conversation handler, где описываем входну точку бота,
+    # реакции на команды бота вида /cmd, описываем маршрутизацию из различных
+    # состояний в зависимости от действий пользователя на момент окончания этого
+    # состояния.
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -733,10 +765,12 @@ def main():
         per_chat=False  # для того чтобы можно было обрабатывать ответы на опрос
     )
     application.add_handler(conv_handler)
-    # Run the bot until the user presses Ctrl-C
+
+    # Непосредственный запуск бота. Работает пока не остановить программу.
     application.run_polling()
 
 if __name__ == "__main__":
+    # при запуске модуля делаем подключение к БД и запускаем функцию main, создающую бота
     ENGINE, CONN = create_connection()  # создаем объекты Engine и Connect к базе данных
     create_table(ENGINE)  # создаем нужные таблицы (если еще не были созданы)
     main()
