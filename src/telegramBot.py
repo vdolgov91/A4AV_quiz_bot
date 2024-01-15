@@ -2,9 +2,11 @@
 Модуль Telegram-бота на базе python-telegram-bot.
 Получает запросы от пользователя, возвращает пользователю информацию о проводимых в его городе квизах.
 
-Написан на основе примера с github разработчиков:
+Написан на основе примеров с github разработчиков python-telegram-bot:
 # This program is dedicated to the public domain under the CC0 license
 https://github.com/python-telegram-bot/python-telegram-bot/blob/v20.0a0/examples/conversationbot.py
+#https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
+https://github.com/python-telegram-bot/python-telegram-bot/wiki/Storing-bot%2C-user-and-chat-related-data
 
 TODO: дописать docstring про модули и классы
 TODO: описать словами логику работы бота
@@ -31,15 +33,15 @@ from dbOperations import create_connection, create_table, insert_new_user, get_u
 INLINE_KEYBOARD_SENT_TO_USER = 0
 QUIZ_LIST_SENT_TO_USER = 1
 PREFERENCES_CHOICE_MENU = 2
-EXCL_BAR_POLL = 3
-EXCL_BAR_RESULT = 4
-EXCL_THEME_POLL = 5
-EXCL_THEME_RESULT = 6
-EXCL_ORGANIZATORS_POLL = 7
-EXCL_ORGANIZATORS_RESULT = 8
+EXCLUDE_BAR_POLL = 3
+EXCLUDE_BAR_RESULT = 4
+EXCLUDE_THEME_POLL = 5
+EXCLUDE_THEME_RESULT = 6
+EXCLUDE_ORGANIZATORS_POLL = 7
+EXCLUDE_ORGANIZATORS_RESULT = 8
 
 # город пока задан хардкодом, на будущее предусмотрена возможность выбора города пользователем
-# при доработке нужно не забыть перенести строку preferencesList[0] = city из функции excl_bar_result
+# при доработке нужно не забыть перенести строку preferencesList[0] = city из функции exclude_bar_result
 city = 'Новосибирск'
 
 # так как возможен разный порядок прохождения по веткам бота, то неизвестно была ли собрана нужная для работы текущей
@@ -58,7 +60,7 @@ DOW = []  # дни недели порядковыми номерами дня, 
 DOWtext = ''  # дни недели словами, для вывода пользователю информации какие фильтры он применил
 theme = ''
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Реакция на команду /start. Бот здоровается и предлагает выбрать в какой день недели хотите сыграть.
     :return: INLINE_KEYBOARD_SENT_TO_USER (int)
@@ -100,7 +102,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return INLINE_KEYBOARD_SENT_TO_USER
 
-async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обрабатывает ответ пользователя на приветственное сообщение, выбранный из вариантов inline-клавиатуры.
     Предлагает пользователю выбрать тематику квизов.
@@ -152,7 +155,8 @@ async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     )
     return INLINE_KEYBOARD_SENT_TO_USER
 
-async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обрабатывает ответ пользователя на вопрос о тематике квиза, выбранный из вариантов inline-клавиатуры.
     Отправляет пользователю отфильтрованный список квизов, с учетом выбранных им в ходе чата днях проведения и
@@ -227,7 +231,8 @@ async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     return QUIZ_LIST_SENT_TO_USER
 
-async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Реакция на команду /all.
     Отправляет пользователю полный список найденных квизов, без учетов выбраных в ходе чата дней недели/ тематики и
@@ -288,7 +293,8 @@ async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     return QUIZ_LIST_SENT_TO_USER
 
-async def create_poll_on_selected_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+async def create_poll_on_selected_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Реакция на ввод пользоватем порядкового номера квиза из сформированного списка.
     Создает опрос по выбранному квизу и завершает работу бота.
     :return: ConversationHandler.END
@@ -344,35 +350,54 @@ async def create_poll_on_selected_quiz(update: Update, context: ContextTypes.DEF
 
     return ConversationHandler.END
 
-#стартовая страница изменения настроек
-async def preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.message.from_user
+
+async def preferences(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Реакция на команду /preferences.
+    Выводит пользователю его текущие предпочтения (если они настроены) и предлагает изменить их.
+    :return: PREFERENCES_CHOICE_MENU (int)
+    """
     global preferencesList
+    user = update.message.from_user
+
     if preferencesList:
-        logger.info("Пользователь %s отправил команду /preferences. У него уже были настройки: %s.",
-                    user.id, str(preferencesList))
-        reply_keyboard = [["Да", "Нет"]]
-        reply_text = 'На настоящий момент ты выбрал(а) город <b>' + preferencesList[1] + '</b> и исключил(а) из поиска: \nбары <b>' + preferencesList[2] + '</b>;\nтематики <b>'  + preferencesList[3] + '</b>;\nорганизаторов <b>' + preferencesList[4] + '</b>.\n\nХочешь внести изменения?'
-        await update.message.reply_text(reply_text, reply_markup=ReplyKeyboardMarkup(
+        logger.info(f'Пользователь {user.id} отправил команду /preferences. У него уже были настройки: '
+                    f'{preferencesList}.')
+        reply_text = f'На настоящий момент ты выбрал(а) город <b>{preferencesList[1]}</b> и исключил(а) из ' \
+                     f'поиска: \nбары <b>{preferencesList[2]}</b>;\n' \
+                     f'тематики <b>{preferencesList[3]}</b>;\n' \
+                     f'организаторов <b>{preferencesList[4]}</b>.\n\nХочешь внести изменения?'
+    else:
+        logger.info(f'Пользователь {user.id} отправил команду /preferences. Ранее у него не было сохраненных настроек.')
+        reply_text = 'У тебя еще не настроены предпочтения. Хочешь исключить какие-то бары/ тематики/ организаторов ' \
+                     'из общего списка?'
+
+    # отправляем пользователю сообщение и inline-клавиатуру с вариантами Да/ Нет
+    reply_keyboard = [["Да", "Нет"]]
+    await update.message.reply_text(reply_text, reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="Хочешь внести изменения?"
         ), parse_mode='HTML')
-    else:
-        logger.info("Пользователь %s отправил команду /preferences. Ранее у него не было сохраненных настроек.",
-                    user.id)
-        reply_keyboard = [["Да", "Нет"]]
-        reply_text = 'У тебя еще не настроены предпочтения. Хочешь исключить какие-то бары/ тематики/ организаторов из общего списка?'
-        await update.message.reply_text(reply_text, reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Что делаем с настройками?"
-        ), parse_mode='HTML')
+
     return PREFERENCES_CHOICE_MENU
 
-#первый этап настроек: получаем информацию по конкретному городу и создаем опрос по исключению баров
-async def excl_bar_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    global bars, organizators, links
-    bars, organizators, links = create_info_by_city(city)
+
+async def exclude_bar_poll(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Первый шаг настройки предпочтений пользователя по команде /preferences.
+    Создает опрос, позволяющий перманентно исключать из выборки квизы, которые проводятся в определенных барах.
+    :return EXCLUDE_BAR_POLL:
+    """
+    global bars, organizators, links, city
+    # если в ходе работы бота значения переменных с информацией, специфической для города проведения еще не были
+    # получены, то запрашиваем их
+    if not bars and not organizators and not links:
+        bars, organizators, links = create_info_by_city(city)
+
     user = update.message.from_user
+    logger.debug(f'Предлагаем пользователю {user.id} исключить бары из списка {bars}')
+
+    # создаем опрос, не анонимный, с множественным выбором, в качестве возможных ответов - бары из списка bars
     poll_text = 'Выбери те бары, квизы в которых не будут показаны.'
-    logger.debug("Предлагаем пользователю %s исключить бары из списка %s ", user.id, str(bars))
     message = await context.bot.send_poll(
         update.effective_chat.id,
         poll_text,
@@ -380,7 +405,8 @@ async def excl_bar_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         is_anonymous=False,
         allows_multiple_answers=True,
     )
-    # Save some info about the poll the bot_data for later use in receive_poll_answer
+
+    # сохраняем контекстную информацию о созданном опросе для дальнейшего использования
     payload = {
         message.poll.id: {
             "questions": bars,
@@ -390,62 +416,82 @@ async def excl_bar_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         }
     }
     context.bot_data.update(payload)
-    return EXCL_BAR_POLL
 
-#обрабатываем результаты запроса по исключению баров
-#https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
-async def excl_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.poll_answer.user
-    answer = update.poll_answer
-    answered_poll = context.bot_data[answer.poll_id]
-    reply_keyboard = [['Выбрать тематики']]
+    return EXCLUDE_BAR_POLL
+
+
+async def exclude_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обрабатывает результаты опроса по исключению баров, пройденного пользователем.
+    :return: EXCLUDE_BAR_RESULT (int)
+    """
     global city, preferencesList
-    if not preferencesList: #если список пуст, то создаем его в нужном формате, сразу вставляя telegramId и city, оставшие фильтры по умолчанию отключены (None)
+    if not preferencesList:
         preferencesList = [user.id, city, 'None', 'None', 'None']
     else:
-        preferencesList[1] = city # пока добавляем захардкоженный city здесь, потом надо перенести в новую функцию
-    selected_options = answer.option_ids #индексы выбранных пользователем вариантов ответов
+        preferencesList[1] = city  # пока добавляем захардкоженный city здесь, потом надо перенести в новую функцию
+
+    # получаем информацию о результатах опроса
+    user = update.poll_answer.user
+    selected_options = update.poll_answer.option_ids  # индексы выбранных пользователем вариантов ответов
+    answered_poll = context.bot_data[update.poll_answer.poll_id]  # id опроса
+
+    # обработка ошибки, когда пользователь ответил на какой-то старый опрос вместо нужного. дословно из примера:
+    # this means this poll answer update is from an old poll, we can't do our answering then
     try:
-        poll_options = answered_poll["questions"] #варианты ответов в списке вида ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки вверх']
-        # this means this poll answer update is from an old poll, we can't do our answering then
+        poll_options = answered_poll["questions"]  # варианты ответов из пройденного опроса
     except KeyError:
+        debug.error(f'Ошибка обработки результатов опроса по барам у пользователя {user.id}')
         return
 
-    # Close poll after one participants voted
+    # увеличиваем счётчик проголосовавших и закрываем опрос
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
-
-    #команда Оставить все бары должна всегда быть первой в списке, тогда ее индекс будет = 0
+    
+    # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
+    reply_keyboard = [['Выбрать тематики']]
+    
+    # вариант 'Оставить все бары' хранится на нулевом индексе списка, если он был выбран, то ничего не исключаем
     if 0 in selected_options:
-        logger.info('Пользователь %s выбрал опцию "Оставить все бары"', user.id)
+        logger.info(f'Пользователь {user.id} выбрал опцию "Оставить все бары"')
         preferencesList[2] = 'None'
-        await context.bot.send_message(
-            answered_poll["chat_id"],
-            'Хорошо, оставляем в выборке все бары. Теперь жми "Выбрать тематики".',
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,)
-        )
+        reply_text = 'Хорошо, оставляем в выборке все бары. Теперь жми "Выбрать тематики".'
     else:
-        answer_string = ""
+        excluded_bars = ""
         for option_id in selected_options:
-            #условие чтобы не ставить ; после последнего из баров
+            #  чтобы не ставить ; после последнего из баров
             if option_id != selected_options[-1]:
-                answer_string += poll_options[option_id] + ";"
+                excluded_bars += poll_options[option_id] + ";"
             else:
-                answer_string += poll_options[option_id]
-        logger.info('Пользователь %s исключил следующие бары: %s', user.id, answer_string)
-        preferencesList[2] = answer_string #записываем получившуюся строку вида 'Арт П.А.Б.;Типография;Руки вверх' в список предпочтений
-        await context.bot.send_message(
-            answered_poll["chat_id"],
-            'Запомню твои предпочтения по барам. Теперь жми "Выбрать тематики".',
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, )
-        )
-    return EXCL_BAR_RESULT
+                excluded_bars += poll_options[option_id]
+        logger.info(f'Пользователь {user.id} исключил следующие бары: {excluded_bars}')
+        # записываем получившуюся строку вида 'Арт П.А.Б.;Типография;Руки вверх' в список предпочтений
+        preferencesList[2] = excluded_bars 
+        reply_text = 'Запомню твои предпочтения по барам. Теперь жми "Выбрать тематики".'
 
-#второй этап настроек: создаем опрос по исключению тематик
-async def excl_theme_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # отправляем пользователю сообщение
+    await context.bot.send_message(
+            answered_poll["chat_id"],
+            reply_text,
+            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+        )
+    
+    return EXCLUDE_BAR_RESULT
+
+
+async def exclude_theme_poll(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Второй шаг настройки предпочтений пользователя по команде /preferences.
+    Создает опрос, позволяющий перманентно исключать из выборки квизы неинтересных пользователю тематик.
+    :return: EXCLUDE_THEME_POLL (int)
+    """
+    global QUIZ_THEMES
+
     user = update.message.from_user
+    logger.debug(f'Предлагаем пользователю {user.id} исключить тематики из списка {QUIZ_THEMES}')
+
+    # создаем опрос, не анонимный, с множественным выбором, в качестве возможных ответов - тематики из QUIZ.themes
     poll_text = 'Выбери те тематики которые следует исключить из списка квизов.'
-    logger.debug("Предлагаем пользователю %s исключить тематики из списка %s ", user.id, str(QUIZ_THEMES))
     message = await context.bot.send_poll(
         update.effective_chat.id,
         poll_text,
@@ -453,7 +499,8 @@ async def excl_theme_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         is_anonymous=False,
         allows_multiple_answers=True,
     )
-    # Save some info about the poll the bot_data for later use in receive_poll_answer
+
+    # сохраняем контекстную информацию о созданном опросе для дальнейшего использования
     payload = {
         message.poll.id: {
             "questions": QUIZ_THEMES,
@@ -463,54 +510,66 @@ async def excl_theme_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         }
     }
     context.bot_data.update(payload)
-    return EXCL_THEME_POLL
 
-#обрабатываем результаты запроса по исключению тематик
-#https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
-async def excl_theme_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.poll_answer.user
-    answer = update.poll_answer
-    answered_poll = context.bot_data[answer.poll_id]
-    reply_keyboard = [['Выбрать организаторов']]
+    return EXCLUDE_THEME_POLL
+
+
+async def exclude_theme_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обрабатывает результаты опроса по исключению тематик, пройденного пользователем.
+    :return: EXCLUDE_THEME_RESULT (int)
+    """
     global preferencesList
-    selected_options = answer.option_ids #индексы выбранных пользователем вариантов ответов
+
+    # получаем информацию о результатах опроса
+    user = update.poll_answer.user
+    selected_options = update.poll_answer.option_ids  # индексы выбранных пользователем вариантов ответов
+    answered_poll = context.bot_data[update.poll_answer.poll_id]  # id опроса
+
+    # обработка ошибки, когда пользователь ответил на какой-то старый опрос вместо нужного. дословно из примера:
+    # this means this poll answer update is from an old poll, we can't do our answering then
     try:
-        poll_options = answered_poll["questions"] #варианты ответов в списке вида ['Оставить все бары', 'Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки вверх']
-        # this means this poll answer update is from an old poll, we can't do our answering then
+        poll_options = answered_poll["questions"]  # варианты ответов из пройденного опроса
     except KeyError:
+        debug.error(f'Ошибка обработки результатов опроса по тематикам у пользователя {user.id}')
         return
-    # Close poll after one participants voted
+
+    # увеличиваем счётчик проголосовавших и закрываем опрос
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
 
-    #команда Оставить все тематики должна всегда быть первой в списке, тогда ее индекс будет = 0
+    # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
+    reply_keyboard = [['Выбрать организаторов']]
+
+    # вариант 'Оставить все тематики' хранится на нулевом индексе списка, если он был выбран, то ничего не исключаем
     if 0 in selected_options:
-        logger.info('Пользователь %s выбрал опцию "Оставить все тематики"', user.id)
+        logger.info(f'Пользователь {user.id} выбрал опцию "Оставить все тематики"')
         preferencesList[3] = 'None'
-        await context.bot.send_message(
-            answered_poll["chat_id"],
-            'Ок, оставляем в выборке все тематики. Теперь жми "Выбрать организаторов".',
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,)
-        )
+        reply_text = 'Ок, оставляем в выборке все тематики. Теперь жми "Выбрать организаторов".'
     else:
-        answer_string = ""
+        excluded_themes = ""
         for option_id in selected_options:
-            #условие чтобы не ставить ; после последнего из баров
+            #  чтобы не ставить ; после последнего из тематик
             if option_id != selected_options[-1]:
-                answer_string += poll_options[option_id] + ";"
+                excluded_themes += poll_options[option_id] + ";"
             else:
-                answer_string += poll_options[option_id]
-        logger.info('Пользователь %s исключил следующие тематики: %s', user.id, answer_string)
-        preferencesList[3] = answer_string #записываем получившуюся строку вида 'Ностальгические;18+' в список предпочтений
-        await context.bot.send_message(
-            answered_poll["chat_id"],
-            'Запомню твои предпочтения по тематикам. Теперь жми "Выбрать организаторов".',
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, )
-        )
-    return EXCL_THEME_RESULT
+                excluded_themes += poll_options[option_id]
+        logger.info(f'Пользователь {user.id} исключил следующие тематики: {excluded_themes}')
+        # записываем получившуюся строку вида 'Ностальгические;18+' в список предпочтений
+        preferencesList[3] = excluded_themes
+        reply_text = 'Запомню твои предпочтения по тематикам. Теперь жми "Выбрать организаторов".'
+
+    # отправляем пользователю сообщение
+    await context.bot.send_message(
+        answered_poll["chat_id"],
+        reply_text,
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+
+    return EXCLUDE_THEME_RESULT
 
 #третий этап настроек: создаем опрос по исключению организаторов
-async def excl_organizators_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def exclude_organizators_poll(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global organizators
     user = update.message.from_user
     poll_text = 'Выбери организаторов, чьи игры следует исключить из списка.'
@@ -532,11 +591,11 @@ async def excl_organizators_poll(update: Update, context: ContextTypes.DEFAULT_T
         }
     }
     context.bot_data.update(payload)
-    return EXCL_ORGANIZATORS_POLL
+    return EXCLUDE_ORGANIZATORS_POLL
 
 #обрабатываем результаты запроса по исключению организаторов
 #https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
-async def excl_organizators_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def exclude_organizators_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.poll_answer.user
     answer = update.poll_answer
     answered_poll = context.bot_data[answer.poll_id]
@@ -578,10 +637,10 @@ async def excl_organizators_result(update: Update, context: ContextTypes.DEFAULT
             'Запомню твои предпочтения по организаторам. Теперь жми "Завершить настройку".',
             reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, )
         )
-    return EXCL_ORGANIZATORS_RESULT
+    return EXCLUDE_ORGANIZATORS_RESULT
 
 #4 этап: сохраняем настройки в базу данных
-async def save_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def save_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     global preferencesList, queryResult
     telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList #разбираем список на переменные для наглядности
@@ -617,7 +676,7 @@ async def save_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 reply_markup=ReplyKeyboardRemove(), parse_mode='HTML'
             )
 
-async def badbye(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def badbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     logger.info("Badbye. Прощаюсь с пользователем %s, так как он отправил неправильный аргумент %s", user.id, update.message.text)
     await update.message.reply_text(
@@ -625,7 +684,7 @@ async def badbye(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return ConversationHandler.END
 
-async def goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     logger.info("Прощаюсь с пользователем %s, так как он успешно завершил обслуживание.", user.id)
     await update.message.reply_text(
@@ -633,7 +692,7 @@ async def goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return ConversationHandler.END
 
-def main() -> None:
+def main():
     """Run the bot."""
     # Create the Application and pass it your bot's token.
     from config import BOT_TOKEN
@@ -650,23 +709,23 @@ def main() -> None:
             ],
             QUIZ_LIST_SENT_TO_USER: [MessageHandler(filters.Regex("^(\d|\d\d)$"), create_poll_on_selected_quiz),
                                      MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            PREFERENCES_CHOICE_MENU: [MessageHandler(filters.Regex("^Да"), excl_bar_poll),
+            PREFERENCES_CHOICE_MENU: [MessageHandler(filters.Regex("^Да"), exclude_bar_poll),
                                       MessageHandler(filters.Regex("^Нет"), start),
                                       MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
             # для выбора города сделать переход из PREFERENCES_CHOICES в новое состояние SELECT_CITY
             # не забыть убрать захардкоженное значение city = "Новосибирск"
-            EXCL_BAR_POLL: [PollAnswerHandler(excl_bar_result),
-                      MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            EXCL_BAR_RESULT: [MessageHandler(filters.Regex("^Выбрать тематики"), excl_theme_poll),
-                      MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            EXCL_THEME_POLL: [PollAnswerHandler(excl_theme_result),
-                            MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            EXCL_THEME_RESULT: [MessageHandler(filters.Regex("^Выбрать организаторов"), excl_organizators_poll),
-                              MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            EXCL_ORGANIZATORS_POLL: [PollAnswerHandler(excl_organizators_result),
-                              MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
-            EXCL_ORGANIZATORS_RESULT: [MessageHandler(filters.Regex("^Завершить настройку"), save_preferences),
-                   MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)]
+            EXCLUDE_BAR_POLL: [PollAnswerHandler(exclude_bar_result),
+                               MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            EXCLUDE_BAR_RESULT: [MessageHandler(filters.Regex("^Выбрать тематики"), exclude_theme_poll),
+                                 MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            EXCLUDE_THEME_POLL: [PollAnswerHandler(exclude_theme_result),
+                                 MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            EXCLUDE_THEME_RESULT: [MessageHandler(filters.Regex("^Выбрать организаторов"), exclude_organizators_poll),
+                                   MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            EXCLUDE_ORGANIZATORS_POLL: [PollAnswerHandler(exclude_organizators_result),
+                                        MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)],
+            EXCLUDE_ORGANIZATORS_RESULT: [MessageHandler(filters.Regex("^Завершить настройку"), save_preferences),
+                                          MessageHandler(filters.TEXT & ~filters.COMMAND, badbye)]
             },
         fallbacks=[CommandHandler("all", send_all_quizzes), CommandHandler("bye", goodbye),
                    CommandHandler("preferences", preferences)],
