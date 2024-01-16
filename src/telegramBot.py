@@ -40,26 +40,6 @@ EXCLUDE_THEME_RESULT = 6
 EXCLUDE_ORGANIZATORS_POLL = 7
 EXCLUDE_ORGANIZATORS_RESULT = 8
 
-# город пока задан хардкодом, на будущее предусмотрена возможность выбора города пользователем
-# при доработке нужно не забыть перенести строку preferencesList[0] = city из функции exclude_bar_result
-city = 'Новосибирск'
-
-# так как возможен разный порядок прохождения по веткам бота, то неизвестно была ли собрана нужная для работы текущей
-# ветки информация. чтобы не делать повторяющиеся запросы в каждой ветке, запрос делается один раз и его результат
-# сохранятеся в глобальные переменные. остальные функции берут данные из глобальных переменных, а не из повторного
-# запроса
-quizList = []
-bars = []
-organizators = []
-links = []
-preferencesList = []
-queryResult = ''
-games = {}
-organizatorErrors = {}
-DOW = []  # дни недели порядковыми номерами дня, для фильтрации списка квизов в модуле quizAggregator
-DOWtext = ''  # дни недели словами, для вывода пользователю информации какие фильтры он применил
-theme = ''
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Реакция на команду /start. Бот здоровается и предлагает выбрать в какой день недели хотите сыграть.
@@ -67,6 +47,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user = update.message.from_user
     logger.info(f'Начинаю чат с пользователем {user.id}')
+
+    # город пока задан хардкодом, на будущее предусмотрена возможность выбора города пользователем
+    # при доработке нужно не забыть перенести строку preferencesList[0] = city из функции exclude_bar_result
+    city = 'Новосибирск'
+    context.user_data['city'] = city
+
+    # так как эта функция всегда запускается первой, задаем в ней необходимые 'глобальные' параметры в контексте
+    # пользователя (доступны для всех чатов с пользователем за время работы бота, обнуляются после перезапуска)
+    # если информация по пользователю еще не собрана - собираем её и сохраняем в user_data
+    bars = context.user_data.get('bars', [])
+    organizators = context.user_data.get('organizators', [])
+    links = context.user_data.get('links', [])
+    if not bars and not organizators and not links:
+        bars, organizators, links = create_info_by_city(city)
+        context.user_data['bars'] = bars
+        context.user_data['organizators'] = organizators
+        context.user_data['links'] = links
+    # удаляем из контекста пользователя значения, которые необходимо получать заново в каждом новом чате
+    keysToRemoveFromUserData = ['queryResult', 'preferencesList', 'DOWtext', 'DOW', 'games', 'organizatorErrors',
+                                'quizList']
+    for key in keysToRemoveFromUserData:
+        context.user_data.pop(key, None)
 
     # подготавливаем inline-клавиатуру с вариантами ответа
     reply_inline_keyboard=[
@@ -78,12 +80,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ]
 
-    global preferencesList, queryResult
+    preferencesList = []
     # делаем запрос о предпочтениях пользователя в БД, если он неуспешен, то вернет None
     queryResult = get_user_preferences(CONN, user.id)
     if queryResult:
-        # БД возвращает tuple, переделываем его в List и сохраняем в глобальную переменную для дальнейшего использования
+        # БД возвращает tuple, переделываем его в List
         preferencesList = list(queryResult)
+
+    # сохраняем результаты в контексте этого пользователя
+    context.user_data['queryResult'] = queryResult
+    context.user_data['preferencesList'] = preferencesList
 
     # отправляем пользователю приветственное сообщение и inline-клавиатуру с вариантами ответа
     # приветствие выбирается в зависимости от того есть ли в БД информация о пользователе
@@ -109,29 +115,33 @@ async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Предлагает пользователю выбрать тематику квизов.
     :return: INLINE_KEYBOARD_SENT_TO_USER (int)
     """
-
     # ждём ответа пользователя
     query = update.callback_query
     await query.answer()
     user =  query.from_user
 
-    reply_inline_keyboard = []
+    global QUIZ_THEMES
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    preferencesList = context.user_data.get('preferencesList', [])
 
-    # Записываем в глобальные переменные DOW и DOWtext выбранные дни недели для использования в других функциях
-    global DOW, DOWtext
+    # извлекаем из ответа пользователя выбранные дни недели и преобразуем их в числовое представление
     DOWtext = query.data
+
     if DOWtext == 'Будни':
         DOW = [1,2,3,4,5]
     elif DOWtext == 'Выходные':
         DOW = [6,7]
     else:
         DOW = [1,2,3,4,5,6,7]
+    context.user_data['DOWtext'] = DOWtext
+    context.user_data['DOW'] = DOW
 
     logger.info(f'Пользователь {user.id} выбрал день недели: {DOWtext}')
 
     # предлагаем пользователю выбрать интересующую его тематику из списка config.QUIZ_THEMES
     # если в /preferences пользователя есть исключенные тематики, то исключаем их из вывода
     themesCopy = QUIZ_THEMES.copy()  # создаем копию списка, чтобы при необходимости удалять элементы из него
+
     if preferencesList:
         exclThemes = preferencesList[3]
         exclThemesList = exclThemes.split(';')
@@ -141,10 +151,11 @@ async def choose_theme(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 indexToDelete = themesCopy.index(excl)
                 del themesCopy[indexToDelete]
 
-    # формируем из доступных к выбору тематик динамическую InlineKeyboard вида:
+    # формируем из доступных к выбору тематик списка themesCopy динамическую InlineKeyboard вида:
     # [[InlineKeyboardButton('Оставить все', callback_data='Оставить все')],
     # [InlineKeyboardButton('Классика', callback_data='Классика')],
     # [InlineKeyboardButton('Мультимедиа', callback_data='Мультимедиа')]]
+    reply_inline_keyboard = []
     for i, button in enumerate(themesCopy):
         reply_inline_keyboard.append([InlineKeyboardButton(button, callback_data=button)])
     logger.info(f'Для пользователя {user.id} сформировался следующий список тематик для выбора: {themesCopy}')
@@ -163,19 +174,27 @@ async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE)
     тематики, а также перманентных исключениях по тематикам/ организаторам/ барам, указанных в /preferences.
     :return: QUIZ_LIST_SENT_TO_USER (int)
     """
-    global DOW, DOWtext, theme, quizList, games, organizatorErrors, bars, organizators, links, city, preferencesList
-
     # ждём ответа пользователя и сохраняем его
     query = update.callback_query
     await query.answer()
     user = query.from_user
-    theme = query.data
+    theme = query.data  # выбранная тема
+
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    city = context.user_data.get('city')
+    bars = context.user_data.get('bars')
+    organizators = context.user_data.get('organizators')
+    links = context.user_data.get('links')
+    preferencesList = context.user_data.get('preferencesList', [])
+    DOW = context.user_data.get('DOW', [])
+    DOWtext = context.user_data.get('DOWtext', [])
 
     # если у пользователя еще нет /preferences, то присваиваем дефолтные значения - не исключаем из вывода ничего
     if not preferencesList:
         logger.info(f'Для пользователя {user.id} еще нет значений preferenceList, присваиваем значения по умолчанию. '
                     f'Функция send_filtered_quiz')
         preferencesList = [user.id, city, 'None', 'None', 'None']
+        context.user_data['preferencesList'] = preferencesList
 
     logger.info(f'Пользователь {user.id} выбрал следующую тематику: {theme}')
     logger.info(f'Готовлю фильтрованный список квизов пользователю {user.id}.')
@@ -186,13 +205,10 @@ async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE)
         'Дай мне минутку на подготовку списка квизов.', parse_mode='HTML'
     )
 
-    # если в ходе работы бота значения переменных с информацией, специфической для города проведения еще не были
-    # получены, то запрашиваем их
-    if not bars and not organizators and not links:
-        bars, organizators, links = create_info_by_city(city)
-
     # получаем полный неформатированный список квизов и список ошибок по отдельным организаторам
     games, organizatorErrors = collect_quiz_data(organizators, links)
+    context.user_data['games'] = games
+    context.user_data['organizatorErrors'] = organizatorErrors
     if len(organizatorErrors) > 0:
         logger.error(f'Ошибка при запросах к следующим организаторам: {organizatorErrors}')
 
@@ -205,6 +221,7 @@ async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f'excl_theme: {excl_theme}, excl_orgs: {excl_orgs}.')
     quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=theme,
                                           excl_bar=excl_bar, excl_theme=excl_theme, excl_orgs=excl_orgs)
+    context.user_data['quizList'] = quizList
     logger.debug(f'Список квизов для пользователя {user.id}: {quizList}')
 
     # формируем сообщение для отправки пользователю, в зависимости от количества найденных квизов
@@ -240,15 +257,15 @@ async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Из вывода исключаются только квизы на которые нет мест и игры по приглашению (инвайту).
     :return: QUIZ_LIST_SENT_TO_USER (int)
     """
-    global quizList, games, organizatorErrors, bars, organizators, links, city
-
     user = update.message.from_user
     logger.info(f'Отправляю полный список квизов пользователю {user.id}.')
 
-    # если в ходе работы бота значения переменных с информацией, специфической для города проведения, еще не были
-    # получены, то запрашиваем их
-    if not bars and not organizators and not links:
-        bars, organizators, links = create_info_by_city(city)
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    bars = context.user_data.get('bars')
+    organizators = context.user_data.get('organizators')
+    links = context.user_data.get('links')
+    games = context.user_data.get('games', {})
+    organizatorErrors = context.user_data.get('organizatorErrors', {})
 
     # если бот уже был в функции send_filtered_quiz и делал скрейпинг сайтов организаторов функцией collect_quiz_data,
     # то не делаем эту операцию повторно.
@@ -261,6 +278,8 @@ async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'Дай мне минутку на подготовку списка квизов.', reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
         # получаем полный неформатированный список квизов и список ошибок по отдельным организаторам
         games, organizatorErrors = collect_quiz_data(organizators, links)
+        context.user_data['games'] = games
+        context.user_data['organizatorErrors'] = organizatorErrors
         if len(organizatorErrors) > 0:
             logger.error(f'Ошибка при запросах к следующим организаторам: {organizatorErrors}')
 
@@ -270,7 +289,7 @@ async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     theme = QUIZ_THEMES[0]  # 'Оставить все'
     quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=theme,
                                           excl_bar='None', excl_theme='None', excl_orgs='None')
-
+    context.user_data['quizList'] = quizList
     # формируем сообщение для отправки пользователю, в зависимости от количества найденных квизов
     # текст отформатирован с использованием HTML-разметки.
     # TODO: существует ограничение по количеству символов, добавить обработку этой ситуации
@@ -299,16 +318,17 @@ async def create_poll_on_selected_quiz(update: Update, context: ContextTypes.DEF
     Создает опрос по выбранному квизу и завершает работу бота.
     :return: ConversationHandler.END
     """
-    global quizList
-
     # извлекаем информацию из ответа пользователя
     user = update.message.from_user
     logger.info(f'Пользователь {user.id} отправил {update.message.text} в качестве номера квиза')
 
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    quizList = context.user_data.get('quizList', [])
+
     # на вход функции пропускается любое число из одного или двух символов (^(\d|\d\d)$)
     # проверяем что пользователь ввел корректный номер квиза.
     # например, если пользователю вывели 10 квизов, то введенное им число должно быть от 1 до 10.
-    # пользователь выбирал индекс из диапазона 1:N, а в list диапазон индексов 0:N, поэтому вычитаем 1
+    # пользователь выбирал индекс из диапазона 1:N, а в list диапазон 0:N, поэтому вычитаем 1 для совпадения индексов
     quizIndex = int(update.message.text) - 1
     if quizIndex in range(len(quizList)):
         # формируем заголовок опроса. убираем HTML-тэги и порядковый номер игры из строки вида
@@ -357,10 +377,14 @@ async def preferences(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Выводит пользователю его текущие предпочтения (если они настроены) и предлагает изменить их.
     :return: PREFERENCES_CHOICE_MENU (int)
     """
-    global preferencesList
     user = update.message.from_user
 
-    if preferencesList:
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    queryResult = context.user_data.get('queryResult', [])
+    preferencesList = context.user_data.get('preferencesList', [])
+
+    # если в БД есть информация о сохраненных настройках пользователя, то выводим их пользователю
+    if queryResult:
         logger.info(f'Пользователь {user.id} отправил команду /preferences. У него уже были настройки: '
                     f'{preferencesList}.')
         reply_text = f'На настоящий момент ты выбрал(а) город <b>{preferencesList[1]}</b> и исключил(а) из ' \
@@ -387,13 +411,11 @@ async def exclude_bar_poll(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Создает опрос, позволяющий перманентно исключать из выборки квизы, которые проводятся в определенных барах.
     :return EXCLUDE_BAR_POLL:
     """
-    global bars, organizators, links, city
-    # если в ходе работы бота значения переменных с информацией, специфической для города проведения еще не были
-    # получены, то запрашиваем их
-    if not bars and not organizators and not links:
-        bars, organizators, links = create_info_by_city(city)
-
     user = update.message.from_user
+
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    bars = context.user_data.get('bars')
+
     logger.debug(f'Предлагаем пользователю {user.id} исключить бары из списка {bars}')
 
     # создаем опрос, не анонимный, с множественным выбором, в качестве возможных ответов - бары из списка bars
@@ -425,9 +447,7 @@ async def exclude_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Обрабатывает результаты опроса по исключению баров, пройденного пользователем.
     :return: EXCLUDE_BAR_RESULT (int)
     """
-    global city, preferencesList
-
-    # получаем информацию о результатах опроса
+     # получаем информацию о результатах опроса
     user = update.poll_answer.user
     selected_options = update.poll_answer.option_ids  # индексы выбранных пользователем вариантов ответов
     answered_poll = context.bot_data[update.poll_answer.poll_id]  # id опроса
@@ -443,6 +463,10 @@ async def exclude_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # увеличиваем счётчик проголосовавших и закрываем опрос
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
+
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    city = context.user_data.get('city')
+    preferencesList = context.user_data.get('preferencesList', [])
 
     if not preferencesList:
         preferencesList = [user.id, city, 'None', 'None', 'None']
@@ -466,6 +490,8 @@ async def exclude_bar_result(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # записываем получившуюся строку вида 'Арт П.А.Б.;Типография;Руки вверх' в список предпочтений
         preferencesList[2] = excluded_bars 
         reply_text = 'Запомню твои предпочтения по барам. Теперь жми "Выбрать тематики".'
+
+    context.user_data['preferencesList'] = preferencesList
 
     # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
     reply_keyboard = [['Выбрать тематики']]
@@ -519,8 +545,6 @@ async def exclude_theme_result(update: Update, context: ContextTypes.DEFAULT_TYP
     Обрабатывает результаты опроса по исключению тематик, пройденного пользователем.
     :return: EXCLUDE_THEME_RESULT (int)
     """
-    global preferencesList
-
     # получаем информацию о результатах опроса
     user = update.poll_answer.user
     selected_options = update.poll_answer.option_ids  # индексы выбранных пользователем вариантов ответов
@@ -537,6 +561,9 @@ async def exclude_theme_result(update: Update, context: ContextTypes.DEFAULT_TYP
     # увеличиваем счётчик проголосовавших и закрываем опрос
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
+
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    preferencesList = context.user_data.get('preferencesList', [])
 
     # вариант 'Оставить все тематики' хранится в 0-м индексе списка, если он был выбран, то ничего не исключаем
     if 0 in selected_options:
@@ -556,6 +583,8 @@ async def exclude_theme_result(update: Update, context: ContextTypes.DEFAULT_TYP
         preferencesList[3] = excluded_themes
         reply_text = 'Запомню твои предпочтения по тематикам. Теперь жми "Выбрать организаторов".'
 
+    context.user_data['preferencesList'] = preferencesList
+
     # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
     reply_keyboard = [['Выбрать организаторов']]
     # отправляем пользователю сообщение
@@ -574,9 +603,11 @@ async def exclude_organizators_poll(update: Update, context: ContextTypes.DEFAUL
     Создает опрос, позволяющий перманентно исключать из выборки квизы неинтересных пользователю организаторов.
     :return: EXCLUDE_ORGANIZATORS_POLL (int)
     """
-    global organizators
-
     user = update.message.from_user
+
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    organizators = context.user_data.get('organizators')
+
     logger.debug(f'Предлагаем пользователю {user.id} исключить организаторов из списка {organizators}')
 
     # создаем опрос, не анонимный, с множественным выбором, в качестве возможных ответов - организаторы в этом городе
@@ -589,7 +620,7 @@ async def exclude_organizators_poll(update: Update, context: ContextTypes.DEFAUL
         allows_multiple_answers=True,
     )
 
-    # сохраняем контекстную информацию о созданном опросе для дальнейшего использованияr
+    # сохраняем контекстную информацию о созданном опросе для дальнейшего использования
     payload = {
         message.poll.id: {
             "questions": organizators,
@@ -608,8 +639,6 @@ async def exclude_organizators_result(update: Update, context: ContextTypes.DEFA
     Обрабатывает результаты опроса по исключению организаторов, пройденного пользователем.
     :return: EXCLUDE_THEME_RESULT (int)
     """
-    global preferencesList
-
     # получаем информацию о результатах опроса
     user = update.poll_answer.user
     selected_options = update.poll_answer.option_ids  # индексы выбранных пользователем вариантов ответов
@@ -626,6 +655,9 @@ async def exclude_organizators_result(update: Update, context: ContextTypes.DEFA
     # увеличиваем счётчик проголосовавших и закрываем опрос
     answered_poll["answers"] += 1
     await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
+
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    preferencesList = context.user_data.get('preferencesList', [])
 
     # вариант 'Оставить всех организаторов' хранится в 0-м индексе списка, если он был выбран, то ничего не исключаем
     if 0 in selected_options:
@@ -644,6 +676,8 @@ async def exclude_organizators_result(update: Update, context: ContextTypes.DEFA
         # записываем получившуюся строку вида 'Лига Индиго;Квиз Плиз' в список предпочтений
         preferencesList[4] = exclude_organizators
         reply_text = 'Запомню твои предпочтения по организаторам. Теперь жми "Завершить настройку".'
+
+    context.user_data['preferencesList'] = preferencesList
 
     # создаем единственный вариант ответа для перехода на следующий этап настроек предпочтений
     reply_keyboard = [['Завершить настройку']]
@@ -664,10 +698,12 @@ async def save_preferences(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Присылает пользователю сообщение о необходимости повторного запуска бота командой /start.
     :return: None
     """
-    global preferencesList, queryResult
-    telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList
-
     user = update.message.from_user
+
+    # извлекаем из контекста пользователя значения ранее присвоеннных параметров
+    preferencesList = context.user_data.get('preferencesList', [])
+    queryResult = context.user_data.get('queryResult', '')
+    telegramId, city, excl_bar, excl_theme, excl_orgs = preferencesList
 
     # если SELECT по пользователю что-то вернул, то для записи настроек используем UPDATE, если не вернул - то INSERT
     if queryResult:
