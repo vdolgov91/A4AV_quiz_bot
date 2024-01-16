@@ -25,8 +25,8 @@ quizAggregator.assign_themes_to_quiz()
 """
 
 import logging
+import logging.config
 import os
-from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from pathlib import Path
 
@@ -44,16 +44,43 @@ curFileDir = os.path.dirname(curFileLocation) # D:\Python\userdir\A4AV_quiz_bot\
 rootDir = os.path.dirname(curFileDir)         # D:\Python\userdir\A4AV_quiz_bot
 ROOT_DIR = Path(rootDir)                      # path object
 
-# настройки логирования
-# https://stackoverflow.com/questions/57204920/how-to-properly-format-the-python-logging-formatter
+# если в проекте нет папки ./logs, то создаем её
 if not os.path.exists(ROOT_DIR / 'logs'):
     os.mkdir(ROOT_DIR / 'logs')
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logFormatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler =  RotatingFileHandler(filename=ROOT_DIR / 'logs/a4av_bot_{:%Y-%m-%d}.log'.format(datetime.now()), maxBytes=10000000, backupCount=10)
-handler.setFormatter(logFormatter)
-logger.addHandler(handler)
+
+# словарь конфигурации модуля логирования
+# чтобы логирование заработало, необходимо разово выполнить logging.config.dictConfig(LOGGING_CONFIG)
+# для бота это происходит в /src/telegramBot.py, для юнит-тестов в conftest.py
+# https://stackoverflow.com/questions/7507825/where-is-a-complete-example-of-logging-config-dictconfig
+LOGGING_CONFIG = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    # в каком формате пишем сообщения
+    'formatters': {
+        'standard_formatter': {
+            'format': '%(asctime)s - [%(levelname)s] %(name)s: %(message)s'
+        },
+    },
+    # куда выводим логи
+    'handlers': {
+        'file_handler': {
+            # хэндлер сам удаляет логи по достижению backupcount и создает новый файл по достижению maxbytes
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'standard_formatter',
+            'filename': ROOT_DIR / 'logs/a4av_bot_{:%Y-%m-%d}.log'.format(datetime.now()),
+            'maxBytes': 10000000,
+            'backupCount': 10
+        },
+    },
+    'loggers': {
+        '': {  # root logger
+            'handlers': ['file_handler'],
+            # глобальный уровень логирования; уровни логирования отдельных приложений понижены в telegramBot.py
+            'level': 'DEBUG',
+            'propagate': False
+        }
+    }
+}
 
 # тематики задаются в одном месте для всех городов. из них автоматически формируются клавиатура при выборе тематики игры
 # и позиции опроса при добавлении исключений. При добавлении тематики не забудьте добавить ее в src/telegramBot.py:

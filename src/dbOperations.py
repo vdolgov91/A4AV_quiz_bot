@@ -13,14 +13,16 @@
 https://www.tutorialspoint.com/sqlalchemy/sqlalchemy_quick_guide.htm#
 https://docs.sqlalchemy.org/en/14/orm/queryguide.html#select-statements
 """
-
+import logging
 import os
 from pathlib import Path
 
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String
 
 import config
-from config import logger
+
+# начать логирование в модуле
+logger = logging.getLogger(__name__)
 
 meta = MetaData()
 userPreferences = Table(

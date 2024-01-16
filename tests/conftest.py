@@ -12,6 +12,8 @@ Fixtures-функции для тестирования с помощью pytest
 """
 
 import datetime
+import logging
+import logging.config
 import os
 import sys
 from pathlib import Path
@@ -26,6 +28,9 @@ sys.path.insert(1, sys.path[0] + '/src')
 import config
 import dbOperations
 import quizAggregator
+
+# применяем глобальную конфигурацию логирования, операция должна быть выполнена при запуске приложения
+logging.config.dictConfig(config.LOGGING_CONFIG)
 
 class LocalFileAdapter(requests.adapters.BaseAdapter):
     """Позволяет делать запрос с помощь requests в локальный html-файл. Исходник:

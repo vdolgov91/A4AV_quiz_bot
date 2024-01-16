@@ -18,18 +18,21 @@
 """
 
 import datetime
+import logging
 import re
 
 import bs4
 import requests
 
 from config import (
-    logger,
     CITY_DICT,
     ORGANIZATORS_DICT,
     QUIZ_THEMES,
     THEME_MAPPING_DICT
 )
+
+# начать логирование в модуле
+logger = logging.getLogger(__name__)
 
 # указываем соответствия текстовых названий месяцов и дней недели (Days Of Week) цифрам, для преобразования
 MONTH_DICT = {'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,

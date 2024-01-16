@@ -1,16 +1,35 @@
 """
 Модуль Telegram-бота на базе python-telegram-bot.
 Получает запросы от пользователя, возвращает пользователю информацию о проводимых в его городе квизах.
+Содержит функции:
+    start(update, context) - реакция на команду /start, выбор желаемого дня недели проведения квиза
+    choose_theme(update, context) - выбор желаемой тематики квиза
+    send_filtered_quiz(update, context) - отправляет отфильтрованный список квизов
+    send_all_quizzes(update, context) - реакция на /all, отправляет полный список квизов
+    create_poll_on_selected_quiz(update, context) - создает опрос по выбранному квизу
+    preferences(update, context) - реакция на /preferences, стартовая страница настроек пользователя
+    exclude_bar_poll(update, context) - создает опрос по исключения баров
+    exclude_bar_result(update, context) - фиксирует результат опроса по исключению баров
+    exclude_theme_poll(update, context) - создает опрос по исключения тематик
+    exclude_theme_result(update, context) - фиксирует результат опроса по исключению тематик
+    exclude_organizators_poll(update, context) - создает опрос по исключения организаторов
+    exclude_organizators_result(update, context) - фиксирует результат опроса по исключению организаторов
+    save_preferences(update, context) - сохраняет настройки пользователя в БД
+    goodbye(update, context) - успешное заверешение чата
+    badbye(update, context) - завершение чата в случае ошибки
+    main() - запускает telegram-бот
 
-Написан на основе примеров с github разработчиков python-telegram-bot:
+Модуль написан на основе примеров с github разработчиков python-telegram-bot:
 # This program is dedicated to the public domain under the CC0 license
 https://github.com/python-telegram-bot/python-telegram-bot/blob/v20.0a0/examples/conversationbot.py
-#https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
+https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
 https://github.com/python-telegram-bot/python-telegram-bot/wiki/Storing-bot%2C-user-and-chat-related-data
 
-TODO: дописать docstring про модули и классы
 TODO: описать словами логику работы бота
 """
+import logging
+import logging.config
+
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -23,9 +42,19 @@ from telegram.ext import (
     PollAnswerHandler
 )
 
-from config import logger, QUIZ_THEMES
+from config import LOGGING_CONFIG, QUIZ_THEMES, ROOT_DIR
 from quizAggregator import create_info_by_city, collect_quiz_data, create_formatted_quiz_list
 from dbOperations import create_connection, create_table, insert_new_user, get_user_preferences, update_user_preferences
+
+# применяем глобальную конфигурацию логирования, операция должна быть выполнена при запуске приложения
+logging.config.dictConfig(LOGGING_CONFIG)
+# начать логирование в модуле
+logger = logging.getLogger(__name__)
+# понижаем уровень логирования отдельных модулей, чтобы логи были читаемыми
+logging.getLogger('telegram').setLevel(logging.INFO)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 # states которые используются в объекте conv_handler функции main() для навигации между пользовательскими функциями.
 # функция возвращает свой state, хэндлер по фильтрам заданным для этого state анализирует ввод пользователя и на его
@@ -745,7 +774,7 @@ async def badbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Удачное завершение чата"""
+    """Успешное завершение чата"""
     user = update.message.from_user
     logger.info(f'Прощаюсь с пользователем {user.id}, так как он успешно завершил обслуживание.')
 
