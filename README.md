@@ -29,7 +29,7 @@ git clone https://github.com/vdolgov91/A4AV_quiz_bot.git
 
 2. Перейдите в корневую папку проекта:
 ```
-cd A4AV_quiv_bot
+cd A4AV_quiz_bot
 ```
 
 3. Создайте в проекте виртуальное окружение (virtual environment):
@@ -58,9 +58,9 @@ BOT_TOKEN = 'your-telegram-bot-token'
 ```
 
 7. Перейдите в папку `src`, чтобы файл базы данных SQLite был создан по корректному относительному пути: 
-`A4AV_quiv_bot/app_db/`
+`A4AV_quiz_bot/app_db/`
 ```
-cd /A4AV_quiv_bot/srс
+cd /A4AV_quiz_bot/srс
 ```
 
 8. Запустите бот из папки `src` с помощью командой строки или из интерфейса IDE:
