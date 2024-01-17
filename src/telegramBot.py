@@ -24,8 +24,6 @@
 https://github.com/python-telegram-bot/python-telegram-bot/blob/v20.0a0/examples/conversationbot.py
 https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
 https://github.com/python-telegram-bot/python-telegram-bot/wiki/Storing-bot%2C-user-and-chat-related-data
-
-TODO: описать словами логику работы бота
 """
 import logging
 import logging.config
