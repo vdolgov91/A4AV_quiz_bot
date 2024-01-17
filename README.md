@@ -34,15 +34,15 @@ cd A4AV_quiz_bot
 
 3. Создайте в проекте виртуальное окружение (virtual environment):
 
-Linux: `python3 -m venv .venv`
+Linux: `python3 -m venv venv`
 
-Windows: `python -m venv .venv`
+Windows: `python -m venv venv`
 
 4. Активируйте созданный virtual environment:
 
 Linux: `source venv/bin/activate`
 
-Windows: `.venv\Scripts\activate`
+Windows: `venv\Scripts\activate`
 
 5. Установите в virtual environment проекта все необходимые зависимости: 
 ```
