@@ -36,7 +36,7 @@ cd A4AV_quiz_bot
 
 Linux: `python3 -m venv .venv`
 
-Windows: `py -m venv .venv`
+Windows: `python -m venv .venv`
 
 4. Активируйте созданный virtual environment:
 
@@ -67,7 +67,7 @@ cd /A4AV_quiz_bot/srс
 
 Linux: `python3 telegramBot.py`
 
-Windows: `py telegramBot.py`
+Windows: `python telegramBot.py`
 
 
 ### Логика работы бота
