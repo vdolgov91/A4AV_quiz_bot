@@ -2,6 +2,7 @@
 Модуль Telegram-бота на базе python-telegram-bot.
 Получает запросы от пользователя, возвращает пользователю информацию о проводимых в его городе квизах.
 Содержит функции:
+    error_handler(update, context) - обработчик ошибок
     start(update, context) - реакция на команду /start, выбор желаемого дня недели проведения квиза
     choose_theme(update, context) - выбор желаемой тематики квиза
     send_filtered_quiz(update, context) - отправляет отфильтрованный список квизов
@@ -20,14 +21,15 @@
     main() - запускает telegram-бот
 
 Модуль написан на основе примеров с github разработчиков python-telegram-bot:
-# This program is dedicated to the public domain under the CC0 license
 https://github.com/python-telegram-bot/python-telegram-bot/blob/v20.0a0/examples/conversationbot.py
-https://docs.python-telegram-bot.org/en/stable/telegram.poll.html
+https://docs.python-telegram-bot.org/en/v20.7/examples.errorhandlerbot.html
+https://docs.python-telegram-bot.org/en/stable/examples.pollbot.html
 https://github.com/python-telegram-bot/python-telegram-bot/wiki/Storing-bot%2C-user-and-chat-related-data
 """
 import logging
 import logging.config
 
+import telegram.error
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -66,6 +68,33 @@ EXCLUDE_THEME_POLL = 5
 EXCLUDE_THEME_RESULT = 6
 EXCLUDE_ORGANIZATORS_POLL = 7
 EXCLUDE_ORGANIZATORS_RESULT = 8
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Реакция на Exception, возникший в ходе работы python-telegram-bot.
+    Выводит пользователю сообщение о том, что произошла ошибка и предлагает пользователю попробовать начать заново.
+    :return: None
+    """
+    # с помощью exc_info= выводим в лог полный traceback ошибки
+    logger.error('Произошел следующий Telegram Exception:', exc_info=context.error)
+
+    # для случая когда сформированный список квизов превысил лимит в 4096 символов формируем отдельное сообщение
+    if str(context.error) in 'Message is too long':
+        reply_text = (
+            'Упс! Нашлось слишком много квизов и они все не помещаются в одно сообщение.\nТакое бывает, когда много '
+            'организаторов вывешивают расписание на месяц вперёд.\nПредлагаю пока не использовать команду /all, '
+            'а отфильтровать список квизов по удобным тебе дням проведения и интересующим тематикам - для этого нажми '
+            '/start'
+        )
+    else:
+        reply_text = (
+            'Упс! Что-то пошло не так. Попробуй нажать /start и начать сначала.'
+        )
+
+    # отправляем пользователю сообщение
+    await context.bot.send_message(
+        chat_id=update.message.chat_id, text=reply_text, parse_mode='HTML'
+    )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -828,6 +857,7 @@ def main():
         per_chat=False  # для того чтобы можно было обрабатывать ответы на опрос
     )
     application.add_handler(conv_handler)
+    application.add_error_handler(error_handler)
 
     # Непосредственный запуск бота. Работает пока не остановить программу.
     application.run_polling()
