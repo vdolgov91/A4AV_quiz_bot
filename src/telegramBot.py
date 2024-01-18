@@ -69,7 +69,9 @@ EXCLUDE_THEME_RESULT = 6
 EXCLUDE_ORGANIZATORS_POLL = 7
 EXCLUDE_ORGANIZATORS_RESULT = 8
 
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+TELEGRAM_MAX_MESSAGE_LENGTH = 4096  # ограничение по количеству символов в одном сообщении Telegram
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Реакция на Exception, возникший в ходе работы python-telegram-bot.
     Выводит пользователю сообщение о том, что произошла ошибка и предлагает пользователю попробовать начать заново.
@@ -81,7 +83,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     # для случая когда сформированный список квизов превысил лимит в 4096 символов формируем отдельное сообщение
     if str(context.error) in 'Message is too long':
         reply_text = (
-            'Упс! Нашлось слишком много квизов и они все не помещаются в одно сообщение.\nТакое бывает, когда много '
+            'Упс! Нашлось слишком много квизов и они все не помещаются даже в 3 сообщения!.\nТакое бывает, когда много '
             'организаторов вывешивают расписание на месяц вперёд.\nПредлагаю пока не использовать команду /all, '
             'а отфильтровать список квизов по удобным тебе дням проведения и интересующим тематикам - для этого нажми '
             '/start'
@@ -95,6 +97,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.message.chat_id, text=reply_text, parse_mode='HTML'
     )
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -282,7 +285,6 @@ async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # формируем сообщение для отправки пользователю, в зависимости от количества найденных квизов
     # текст отформатирован с использованием HTML-разметки.
-    # TODO: существует ограничение по количеству символов, добавить обработку этой ситуации
     if len(quizList) == 0:
         reply_text = '<b>НИКТО</b> НЕ ПРОВОДИТ ТАКИХ КВИЗОВ!'
         logger.info(f'Для пользователя {user.id} не вернулось ни одного квиза под данный фильтр')
@@ -296,6 +298,17 @@ async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 'Отправь команду /all если хочешь посмотреть полный список квизов.\nОтправь команду /preferences, ' \
                 'чтобы изменить свои предпочтения.'
     reply_text += '\n' + reply_end
+
+    # если длина получившегося списка квизов превышает максимальное значение 4096 символов, то так как
+    # query.edit_message_text подменяет текст последнего сообщения, а не шлет N новых, мы не можем прислать полный
+    # список квизов в этом MessageHandler. Поэтому выводим пользователю ошибку.
+    messageLength = len(reply_text)
+    if messageLength > TELEGRAM_MAX_MESSAGE_LENGTH:
+        reply_text = 'Под выборку попало слишком много квизов и я не могу их все отобразить. Ты можешь нажать /all и ' \
+                     'тогда я покажу полный список квизов (но без твоих предпочтений), либо можешь нажать /start и ' \
+                     'изменить предпочтения. Также ты можешь исключить отдельные бары, тематики и организаторов с ' \
+                     'помощью команды /preferences'
+        logger.warning(f'Для пользователя {user.id} сформировался слишком большой список квизов в send_filtered_quiz')
 
     # отправляем пользователю сообщение с отфильтрованным списком квизов
     await query.edit_message_text(
@@ -346,9 +359,9 @@ async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     quizList = create_formatted_quiz_list(games, organizatorErrors, dow=DOW, selected_theme=theme,
                                           excl_bar='None', excl_theme='None', excl_orgs='None')
     context.user_data['quizList'] = quizList
+
     # формируем сообщение для отправки пользователю, в зависимости от количества найденных квизов
     # текст отформатирован с использованием HTML-разметки.
-    # TODO: существует ограничение по количеству символов, добавить обработку этой ситуации
     if len(quizList) == 0:
         reply_text = 'ВООБЩЕ НИКТО НЕ ПРОВОДИТ КВИЗЫ В БЛИЖАЙШИЕ ДНИ!'
         logger.warning(f'Не вернулось ни одного квиза при запросе без фильтров для пользователя {user.id}. Это '
@@ -362,9 +375,50 @@ async def send_all_quizzes(update: Update, context: ContextTypes.DEFAULT_TYPE):
                       'даже с отключенными фильтрами я не отображаю информацию о квизах, где есть запись только ' \
                       'в резерв и о квизах участие в которых возможно только по приглашениям.'
 
-    # отправляем пользователю сообщение с отфильтрованным списком квизов
-    await update.message.reply_text(
-        reply_text, reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
+    num_of_messages = 1  # значение по умолчанию
+    messageLength = len(reply_text)
+
+    # если длина получившегося списка квизов превышает максимальное значение 4096 символов, то пробуем разбить
+    # список на несколько сообщений. Если список слишком длинный, то отправляем как есть и обрабатываем вернувшуюся
+    # ошибку с помощью error_handler
+    if messageLength > TELEGRAM_MAX_MESSAGE_LENGTH:
+        # определяем требуемое количество сообщений; максимум - 3 сообщения, иначе будет нечитаемая стена текста
+        for i in range(2, 4):
+            if messageLength in range(TELEGRAM_MAX_MESSAGE_LENGTH, i * TELEGRAM_MAX_MESSAGE_LENGTH):
+                num_of_messages = i
+                logger.info(f'Список квизов будет разделен на {num_of_messages} сообщения, так как его длина '
+                            f'составляет {messageLength} символов при лимите на длину сообщения в '
+                            f'{TELEGRAM_MAX_MESSAGE_LENGTH} символов.')
+                break
+
+    if num_of_messages > 1:
+        # список индексов по которым будем делить текст на сообщения, первое сообщение всегда начинается с 0-го индекса
+        sliceIndexes = [0]
+
+        # делим текст на num_of_messages сообщений
+        for i in range(num_of_messages - 1):
+            # извлекаем подстроку длинной в TELEGRAM_MAX_MESSAGE_LENGTH от последнего известного индекса
+            subString = reply_text[sliceIndexes[i]: (sliceIndexes[i] + TELEGRAM_MAX_MESSAGE_LENGTH)]
+            # подстрока скорее всего обрывается на полслова, поэтому нужно найти индекс на котором заканчивается
+            # последняя полная информация о квизе в этой подстроке
+            # каждый квиз отделен от предыдущего символом переноса строки, находим местоположение последнего в подстроке
+            indexInStringSlice = subString.rfind('\n')
+            # индекс в полной строке = индекс начала подстроки + индекс символа переноса строки в подстроке
+            newLineIndex = sliceIndexes[i] + indexInStringSlice
+            sliceIndexes.append(newLineIndex)
+        # финальным элементом списка индексов указываем длину сообщения
+        sliceIndexes.append(messageLength)
+
+        # отправляем num_of_messages сообщений
+        for k in range(num_of_messages):
+            curMessage = reply_text[sliceIndexes[k]:sliceIndexes[k + 1]]
+            await update.message.reply_text(
+                curMessage, reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
+
+    else:
+        # отправляем пользователю одно сообщение с отфильтрованным списком квизов
+        await update.message.reply_text(
+            reply_text, reply_markup=ReplyKeyboardRemove(), parse_mode='HTML')
 
     return QUIZ_LIST_SENT_TO_USER
 

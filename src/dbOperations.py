@@ -178,6 +178,12 @@ def delete_user(conn, telegram_id):
 
 if __name__ == '__main__':
     # Если требуется создать подключение, файл SQLite 'a4av.db' и таблицу user_preference в ручном режиме.
-    # По умолчанию все это создается либо в telegramBot.py, либо в Unit-тестах.
+    # По умолчанию все это создается в ходе работы модуля telegramBot.py, либо в Unit-тестах.
+
+    # применяем глобальную конфигурацию логирования, операция должна быть выполнена при запуске приложения
+    logging.config.dictConfig(config.LOGGING_CONFIG)
+    # начать логирование в модуле
+    logger = logging.getLogger(__name__)
+
     ENGINE, CONN = create_connection()
     create_table(ENGINE)
