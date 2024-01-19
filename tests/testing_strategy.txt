@@ -1,7 +1,3 @@
-tmp_path: C:\Users\vdolgov\AppData\Local\Temp\pytest-of-vdolgov\
-
-pytest -v -k "test_obsolete" --cov=dbOperations --cov-report=html
-
 dbOperations:
     * проверить создание БД create_database()
         * корректный DBPath
@@ -82,7 +78,3 @@ quizAggregator:
 
 telegramBot:
 
-
-интеграция:
- - проверить что будет если нет папки app_db
- - проверить что будет если нет файла с БД
