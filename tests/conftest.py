@@ -5,7 +5,9 @@ Fixtures-функции для тестирования с помощью pytest
     LocalFileAdapter(requests.adapters.BaseAdapter)
 Содержит функции:
     expected_games()
-    expected_games_2
+    expected_games_2()
+    expected_games_mama_quiz()
+    mama_quiz_from_local_files()
     quiz_from_real_web_sites()
     quiz_from_local_files()
     temp_db_path(tmp_path_factory)
@@ -121,6 +123,55 @@ def quiz_from_local_files():
     games, organizatorErrors = quizAggregator.collect_quiz_data(cityOrganizators, cityLinks, responsesDict)
     return games, organizatorErrors
 
+@pytest.fixture(scope='session')
+@freezegun.freeze_time("2023-12-13")  # в качестве datetime.now() устанавливаем дату сохранения локальных HTML файлов
+def mama_quiz_from_local_files():
+    """Создаёт адаптеры для подключения модуля requests к локальным копиям веб-страниц.
+    Функция возвращает tulpe с содержимым (games, organizatorErrors), извлеченным из локальных файлов.
+    Так как со скрейпингом сайта Мама Квиз есть проблемы, то сделана отдельная функция, которая будет брать информацию
+    с нескольких разных копий веб-страницы организатора.
+    """
+    responsesDict = {}
+    games = {}
+    organizatorErrors = {}
+    cityOrganizators = ['Оставить всех организаторов', 'Мама Квиз']
+    cityLinks = ['placeholder', 'https://nsk.mamaquiz.ru/']
+
+    # добавляем ссылки на новые страницы в этот словарь, с индексом mamaN, где N - int
+    organizatorsLinksLocal = {
+    'mama1': 'mamaquiz_schedule_2023-12-14.html',
+    'mama2': 'mamaquiz_schedule_2024-01-15.html',
+    }
+
+    # делаем запрос в collect_quiz_data по каждой копии страницы и сохраняем результат в общий словарь games
+    for key, value in organizatorsLinksLocal.items():
+        # формируем ссылку на нужный HTML-файл сначала в формате Path, потом конвертируем в URI
+        pathToLocalHTML = config.ROOT_DIR / 'tests/saved_web_pages' / value
+        if os.path.exists(pathToLocalHTML):
+            localURI = pathToLocalHTML.as_uri()
+            # создаем сессию до локального файла с помощью кастомного адаптера LocalFileAdapter
+            requests_session = requests.session()
+            requests_session.mount('file://', LocalFileAdapter())
+            response = requests_session.get(f'file://{localURI}')
+            responsesDict['Мама Квиз'] = response
+            tempGames, tempErrors = quizAggregator.collect_quiz_data(cityOrganizators, cityLinks, responsesDict)
+            # по каждой странице вернутся индексы вида mama0, mama1. нам надо переименовать их в уникальные значения,
+            # чтобы можно было все добавить в один словарь.
+            # поэтому создаем новый словарь и туда добавляем те же игры, но с уникальным индексом (mama1 > mama11)
+            tempGamesRenamed = {}
+            for real_game_key in tempGames:
+                renamed_key = real_game_key.replace('mama', key)
+                tempGamesRenamed[renamed_key] = tempGames[real_game_key]
+
+            games.update(tempGamesRenamed)
+
+            # если по организатору вернулись ошибки хотя бы по одной из страниц, то добавляем их в итоговый словарь
+            if tempErrors:
+                organizatorErrors.update(tempErrors)
+        else:
+            raise FileExistsError(f'File {pathToLocalHTML} does not exist')
+    return games, organizatorErrors
+
 
 @pytest.fixture(scope='session')
 def quiz_from_real_web_sites():
@@ -204,3 +255,28 @@ def expected_games_2():
 'wow17': {'game': '18+ #16 За гранью приличия', 'date': datetime.datetime(2023, 2, 19, 18, 0), 'bar': 'Три Лося',
           'tag': ['18+']}
 }
+
+
+@pytest.fixture(scope='session')
+def expected_games_mama_quiz():
+    """Словарь заведомо корректных игр, проверенных вручную.
+    Нужен для работы с разными копиями страницы организатора 'Мама Квиз'.
+    На настоящий момент содержит игры из mamaquiz_schedule_2023-12-14.html и mamaquiz_schedule_2024-01-15.html
+    """
+    return {
+'mama10': {'game': 'КВИЗАНУТЫЙ НОВЫЙ ГОД 2024', 'date': datetime.datetime(2023, 12, 13, 19, 30),
+           'bar': 'MISHKIN&MISHKIN', 'tag': []},
+'mama11': {'game': 'АЛКОКВИЗ #2', 'date': datetime.datetime(2024, 1, 3, 14, 0), 'bar': 'MISHKIN&MISHKIN', 'tag': []},
+'mama12': {'game': 'КИНОМЬЮЗИК: НОВОГОДНИЙ #2', 'date': datetime.datetime(2024, 1, 4, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+           'tag': ['Мультимедиа']},
+'mama13': {'game': 'ЛОГИКА ГДЕ? #14', 'date': datetime.datetime(2024, 1, 5, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+           'tag': []},
+'mama14': {'game': 'КЛАССИКА #128', 'date': datetime.datetime(2024, 1, 6, 14, 0), 'bar': 'MISHKIN&MISHKIN',
+           'tag': ['Классика']},
+'mama20': {'game': 'ТОЛЬКО МУЛЬТИКИ #8', 'date': datetime.datetime(2024, 1, 21, 18, 0), 'bar': 'MISHKIN&MISHKIN',
+           'tag': ['Мультимедиа']},
+'mama21': {'game': 'КИНОМЬЮЗИК: 2000-Е #3', 'date': datetime.datetime(2024, 1, 28, 18, 0), 'bar': 'MISHKIN&MISHKIN',
+           'tag': ['Мультимедиа', 'Ностальгия']},
+'mama22': {'game': 'КЛАССИКА #130', 'date': datetime.datetime(2024, 1, 31, 19, 30), 'bar': 'MISHKIN&MISHKIN',
+           'tag': ['Классика']}
+ }

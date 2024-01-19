@@ -237,6 +237,18 @@ class TestCollectQuizData:
         returnedGameParams = [value[gameParam] for key, value in quiz_from_local_files[0].items()]
         assert returnedGameParams == expectedGameParams
 
+    def test_mock_mama_quiz_errors(self, mama_quiz_from_local_files):
+        """Проверяем отсутствие ошибок при скрейпинге локальных копий страниц сайта 'Мама Квиз'"""
+        organizatorErrors = mama_quiz_from_local_files[1]
+        assert organizatorErrors == {}
+
+    @pytest.mark.parametrize('gameParam', ['game', 'date', 'bar', 'tag'])
+    def test_mock_mama_quiz_params(self, mama_quiz_from_local_files, expected_games_mama_quiz, gameParam):
+        """Проверяем правильность параметров с нескольких различных копий сайта 'Мама Квиз"""
+        expectedGameParams = [value[gameParam] for key, value in expected_games_mama_quiz.items()]
+        returnedGameParams = [value[gameParam] for key, value in mama_quiz_from_local_files[0].items()]
+        assert returnedGameParams == expectedGameParams
+
     def test_real_games_collected_some_games(self, quiz_from_real_web_sites):
         """Делаем запрос на реальные сайты организаторов и проверяем что список игр вернулся ненулевым"""
         assert len(quiz_from_real_web_sites[0]) > 0
