@@ -274,47 +274,49 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
     mamaStartingTimeList = []
     mamaMonthList = []
     mamaBarList = []
-    startElementsIndexes = []
+    endElementsIndexes = []
 
     try:
         # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах.
-        # информация не сгруппирована по квизам, каждый элемент (дата, название, тема и т.п.) является дочерним.
+        # информация не сгруппирована по квизам, дата, название, тема и т.п. по каждому квизу является прямым
+        # дочерним элементом этого элемента.
         # поэтому для Мама Квиз делаем скрейпинг эвристически:
-        # сначала ищем элемент с числом проведения квиза, это ПОЧТИ всегда будет первый элемент информации о квизе,
-        # позиции остальных элементов могут меняться, поэтому информация будет извлекаться регулярными выражениями
+        # сначала ищем элемент с местом проведения квиза, это ПРЕДПОЛОЖИТЕЛЬНО всегда будет последний элемент ЗНАЧИМОЙ
+        # информации о квизе, позиции остальных элементов могут меняться, поэтому информация будет извлекаться
+        # регулярными выражениями в интервалах от одного места проведения до другого места проведения
+
+        # идея на будущее: искать элементы по названию стиля (style="line-height: 67px;"), но там сразу есть проблемы в
+        # том что информация об игре может быть в двух разных стилях (67px и 71px)
+
         mamaElements = quizSoup.select('#rec487013113 > div > div > div')
 
-        # ищем элемент с числом проведения квиза в формате 01-31 и записываем индексы где хранятся эти элементы.
-        # это почти всегда будет первый элемент информации о квизе, позиции остальных элементов еще менее стабильны
-        # эта логика должна отработать корректно для всех случаев когда у первого квиза этот элемент является первым.
+        # ищем элемент с местом проведения квиза в формате 'ул. ' и записываем индексы где хранятся эти элементы
+        # это почти всегда будет последний элемент со значимой информации о квизе, позиции остальных элементов еще менее
+        # стабильны.
         for i, curSoupElement in enumerate(mamaElements):
             curElement = str(curSoupElement)
             tempSoup = bs4.BeautifulSoup(curElement, 'html.parser')
             try:
                 result = tempSoup.find("div", {"class": "tn-atom"})
                 tempText = result.text
-                if tempText:
-                    mamaDateRegEx = re.compile(r'^\d{1,2}$')
-                    mo = mamaDateRegEx.search(tempText)
-                    if mo:
-                        mamaDate = mo.group()
-                        mamaDateList.append(mamaDate)
-
-                        # добавляем индекс предположительно первого элемента в информации о квизе
-                        startElementsIndexes.append(i)
-                        continue
+                # информация о баре пишется в формате 'MISHKIN&MISHKIN (ул. Нарымская, 37)'
+                if 'ул. ' in tempText:
+                    tempIndex = tempText.index('(')
+                    mamaBar = tempText[:tempIndex - 1]  # отрезаем адрес и пробел перед ним
+                    mamaBarList.append(mamaBar)
+                    endElementsIndexes.append(i)
+                    continue
 
             except:
                 continue
 
-        # на основе списка индексов элементов с которых начинается информация о квизе, формируем список индексов
-        # элементов на которых заканчивается информация о квизе:
-        # startElementsIndexes = [9, 29, 50, 69, 93]
-        # endElementsIndexes   = [29, 50, 69, 93, 111]
-        endElementsIndexes = startElementsIndexes.copy()
-        endElementsIndexes.pop(0)  # удаляем первый элемент, сдвигаем оставшиеся на одну позицию влево
-        finalElementIndex = len(mamaElements)
-        endElementsIndexes.append(finalElementIndex)  # в качестве последнего индекса указываем последний элемент Soup
+        # на основе списка индексов элементов на которые заканчивается информация о квизе формируем
+        # список индексов элементов на которые начинается информация о квизе:
+        # endElementsIndexes   = [20, 40, 61, 81, 101]
+        # startElementsIndexes = [0, 20, 40, 61, 81]
+        startElementsIndexes = endElementsIndexes.copy()
+        startElementsIndexes.insert(0, 0)
+        startElementsIndexes.pop(-1)
 
         for x, index in enumerate(startElementsIndexes):
             # ищем информацию в диапазоне между первым элементом текущего квиза startElementsIndexes[x] + 1
@@ -370,6 +372,14 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
                             mamaMonth = MONTH_DICT[tempText]
                             mamaMonthList.append(mamaMonth)
                             continue
+
+                        # извлекаем число проведения игры
+                        mamaDateRegEx = re.compile(r'^\d{1,2}$')
+                        mo = mamaDateRegEx.search(tempText)
+                        if mo:
+                            mamaDate = mo.group()
+                            mamaDateList.append(mamaDate)
+
                 except:
                     continue
 
