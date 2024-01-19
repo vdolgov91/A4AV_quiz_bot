@@ -97,15 +97,16 @@ def quiz_from_local_files():
     Функция возвращает tulpe с содержимым (games, organizatorErrors), извлеченным из локальных файлов.
     """
     responsesDict = {}
-    cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз',
+    cityOrganizators = ['Оставить всех организаторов', 'Квиз Плиз', 'Лига Индиго', 'Мама Квиз', 'Эйнштейн пати',
                         'WOW Quiz']
     cityLinks = ['placeholder', 'https://nsk.quizplease.ru/schedule', 'https://ligaindigo.ru/novosibirsk',
-                 'https://nsk.mamaquiz.ru/', 'https://nsk.wowquiz.ru/schedule']
+                 'https://nsk.mamaquiz.ru/', 'https://nsk.albertparty.ru/schedule', 'https://nsk.wowquiz.ru/schedule']
 
     organizatorsLinksLocal = {
     'Квиз Плиз': 'quizplease_schedule_2023-12-14.html',
     'Лига Индиго': 'ligaindigo_schedule_2023-12-14.html',
     'Мама Квиз': 'mamaquiz_schedule_2023-12-14.html',
+    'Эйнштейн пати': 'einstein_party_schedule_2024-01-19.html',
     'WOW Quiz': 'wowquiz_schedule_2023-12-20.html'
 }
     for key, value in organizatorsLinksLocal.items():
@@ -187,6 +188,7 @@ def quiz_from_real_web_sites():
 @pytest.fixture(scope='session')
 def expected_games():
     """Словарь заведомо корректных игр на основании запроса от 2023-12-13 в файлы
+    einstein_party_schedule_2024-01-19.html - 2 (1 в резерве)
     ligaindigo_schedule_2023-12-14.html - 1
     mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
     quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
@@ -212,6 +214,10 @@ def expected_games():
                   'tag': []},
         'mama4': {'game': 'КЛАССИКА #128', 'date': datetime.datetime(2024, 1, 6, 14, 0), 'bar': 'MISHKIN&MISHKIN',
                   'tag': ['Классика']},
+        'ein2': {'game': 'Кино', 'date': datetime.datetime(2024, 1, 23, 19, 30), 'bar': 'Типография',
+                 'tag': ['Мультимедиа']},
+        'ein3': {'game': 'Нулевые (00е)', 'date': datetime.datetime(2024, 1, 28, 16, 0), 'bar': 'Типография',
+                 'tag': ['Ностальгия']},
         'wow5': {'game': 'Обо всём. Похмельно-новогодняя #47 ', 'date': datetime.datetime(2024, 1, 2, 16, 0),
                  'bar': 'Три Лося', 'tag': ['Классика']},
         'wow6': {'game': 'Угадай мелодию. Русское (туры по жанрам)', 'date': datetime.datetime(2024, 1, 3, 16, 0),

@@ -10,7 +10,7 @@
     scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None) - скрейпит информацию с сайта Лига Индиго
     scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Мама Квиз
     scrape_quiz_please(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Квиз Плиз
-    scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams) - - скрейпит информацию с сайта Wow Quiz
+    scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams) - - скрейпит информацию с сайтов Wow Quiz/ Эйнштейн пати
 
 Содержит константы:
     DOW_DICT - словарь соответствия порядкового номера дня недели его названию (1: 'понедельник')
@@ -546,7 +546,7 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
 
 def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
     """
-    Функция которая скрейпит информацию с сайта WOW Quiz и возвращает список квизов и возникших ошибок.
+    Функция которая скрейпит информацию с сайтов WOW Quiz/ Эйнштейн пати и возвращает список квизов и возникших ошибок.
     :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
     :param orgName (str): имя организатора ('WOW Quiz')
     :param orgTag (str): тэг организатора ('wow')
@@ -595,8 +595,15 @@ def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
             wowBar = wowBar[0].text
 
             # извлекаем наличие мест на игру вида "Места есть"/ "Резерв"
-            wowAvailability = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
+            # на настоящий момент единственное различение при скрейпинге WOW Quiz и Эйнштейн пати
+            if orgName == 'WOW Quiz':
+                wowAvailability = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
                                               f'div.game-item-content-right > span')
+            elif orgName == 'Эйнштейн пати':
+                wowAvailability = quizSoup.select(f'{selectorBeginning} > div > div.game-item-bottom > '
+                                                  f'div.game-item-buttons > a.game-item__btn.active.register_team > '
+                                                  f'span')
+
             wowAvailability = wowAvailability[0].text
 
             # преобразовываем дату проведения квиза в нужный формат
@@ -620,7 +627,7 @@ def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
 
             # исключаем из выборки заведомо неподходящие квизы: нет мест, квиз уже прошел
             # из остального формируем словарь games
-            if wowAvailability != 'Резерв' and quizDT >= curDT:
+            if wowAvailability.lower() != 'резерв' and quizDT >= curDT:
                 games[orgTag + str(n)] = {}
                 games[orgTag + str(n)]['game'] = wowGameName
                 games[orgTag + str(n)]['date'] = quizDT
@@ -686,6 +693,13 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
                     gamesMama, orgErrorsMama = scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams)
                     games = {**games, **gamesMama}
                     organizatorErrors = {**organizatorErrors, **orgErrorsMama}
+
+                elif orgName == 'Эйнштейн пати':
+                    # т.к. ранее WOW Quiz и Эйнштейн пати были одним организатором, после разделения у них остались
+                    # сайты с одинаковой структурой, поэтому для Эйшнтейн пати переиспользуем функцию WOW Quiz
+                    gamesWow, orgErrorsWow = scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams)
+                    games = {**games, **gamesWow}
+                    organizatorErrors = {**organizatorErrors, **orgErrorsWow}
 
                 elif orgName == 'WOW Quiz':
                     gamesWow, orgErrorsWow = scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams)

@@ -221,12 +221,13 @@ class TestCollectQuizData:
 
     def test_mock_number_of_games(self, quiz_from_local_files):
         """Проверяем количество извлеченных квизов с локальных копий веб-страниц из папки ./tests/saved_web_pages
+        einstein_party_schedule_2024-01-19.html - 2 (1 в резерве)
         ligaindigo_schedule_2023-12-14.html - 1
         mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
         quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
         wowquiz_schedule_2023-12-20.html - 6 (остальные резерв и должны быть отброшены)
         """
-        expected = 1 + 5 + 3 + 6
+        expected = 1 + 5 + 3 + 6 + 2
         localQuizes = quiz_from_local_files[0]
         assert len(localQuizes) == expected
 
@@ -307,7 +308,9 @@ class TestCreateFormattedQuizList:
 '12. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
 '13. <b>Мама Квиз</b>: КЛАССИКА #128. Бар: MISHKIN&MISHKIN, суббота, 6 января, 14:00\n',
 '14. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
-'15. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n'
+'15. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n',
+'16. <b>Эйнштейн пати</b>: Кино. Бар: Типография, вторник, 23 января, 19:30\n',
+'17. <b>Эйнштейн пати</b>: Нулевые (00е). Бар: Типография, воскресенье, 28 января, 16:00\n',
 ]
         returnedQuizList = quizAggregator.create_formatted_quiz_list(expected_games, organizatorErrors, dow=dow,
                                                                      selected_theme=selected_theme, excl_bar=excl_bar,
@@ -374,7 +377,8 @@ class TestCreateFormattedQuizList:
             '4. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
             '5. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
             '6. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, '
-            '16:00\n'
+            '16:00\n',
+            '7. <b>Эйнштейн пати</b>: Кино. Бар: Типография, вторник, 23 января, 19:30\n',
         ]
         returnedQuizList = quizAggregator.create_formatted_quiz_list(expected_games, organizatorErrors, dow=dow,
                                                                      selected_theme=selected_theme, excl_bar=excl_bar,
@@ -390,7 +394,8 @@ class TestCreateFormattedQuizList:
         expectedQuizList = [
             '1. <b>Лига Индиго</b>: Новый год СССР. Бар: Три Лося, понедельник, 18 декабря, 19:30\n',
             '2. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
-            '3. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n'
+            '3. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
+            '4. <b>Эйнштейн пати</b>: Нулевые (00е). Бар: Типография, воскресенье, 28 января, 16:00\n',
         ]
 
         returnedQuizList = quizAggregator.create_formatted_quiz_list(expected_games, organizatorErrors, dow=dow,

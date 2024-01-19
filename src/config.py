@@ -96,7 +96,7 @@ THEME_MAPPING_DICT = {
                     'властелин колец','игра престолов','клиника','сумерки','indigo show','music','литература','футбол',
                     'компьютерн','видео','марвел','мстител','marvel', 'спорт'],
     'Новички': ['новички'],
-    'Ностальгия': ['ссср', '00-', '90-', '80-', 'советск'],
+    'Ностальгия': ['ссср', 'советск', '10-', '00-', '90-', '80-', '10е', '00е', '90е', '08е'],
     '18+': ['18+', 'чёрный квиз', 'черный квиз']
 }
 
@@ -105,10 +105,11 @@ THEME_MAPPING_DICT = {
 # в качестве ключа словаря пишем название организатора, в качестве значения на 0 позиции - тэг организатора,
 # на 1 позиции - ссылку, где строкой <city_tag> указывается в каком месте ссылка параметризируется
 ORGANIZATORS_DICT = {
-    'Квиз Плиз': ['qp','https://<city_tag>.quizplease.ru/schedule'],                # https://nsk.quizplease.ru/schedule
-    'Лига Индиго': ['li','https://ligaindigo.ru/<city_tag>'],                       # https://ligaindigo.ru/novosibirsk
-    'Мама Квиз': ['mama','https://<city_tag>.mamaquiz.ru/'],                        # https://nchk.mamaquiz.ru/, у Новосибирска просто https://mamaquiz.ru/
-    'WOW Quiz': ['wow','https://<city_tag>.wowquiz.ru/schedule']                    # https://nsk.wowquiz.ru/schedule
+    'Квиз Плиз': ['qp', 'https://<city_tag>.quizplease.ru/schedule'],               # https://nsk.quizplease.ru/schedule
+    'Лига Индиго': ['li', 'https://ligaindigo.ru/<city_tag>'],                      # https://ligaindigo.ru/novosibirsk
+    'Мама Квиз': ['mama', 'https://<city_tag>.mamaquiz.ru/'],                       # https://nchk.mamaquiz.ru/, у Новосибирска просто https://mamaquiz.ru/
+    'Эйнштейн пати': ['ein', ' https://<city_tag>.albertparty.ru/schedule'],        # https://nsk.albertparty.ru/schedule
+    'WOW Quiz': ['wow', 'https://<city_tag>.wowquiz.ru/schedule']                   # https://nsk.wowquiz.ru/schedule
 }
 
 # словарь с информацией о городах - какие организаторы есть, какой у этого организатора <city_tag> для формирования
@@ -119,9 +120,10 @@ ORGANIZATORS_DICT = {
 CITY_DICT = {
     'Образец Заполнения': {                 # название города
         'bars': ['Red Lion', 'Хамовники'],  # названия баров, где проводятся квизы
-        'qp': 'msc',                        # обозначение города в URL организатора "Квиз Плиз", например, nsk
+        'ein': 'nsk',                       # обозначение города в URL организатора "Эйнштейн пати"
         'li': 'moscow',                     # обозначение города в URL организатора "Лига Индиго", например, Novosibirsk
         'mama': 'tomsk',                    # обозначение города в URL организатора "Мама Квиз", например, tomsk
+        'qp': 'msc',                        # обозначение города в URL организатора "Квиз Плиз", например, nsk
         'wow': 'msc',                       # обозначение города в URL организатора "WOW Quiz", например, nsk
         'local_organizators': [             # информация о местных организаторах, name - название организатора, link - ссылка на страницу с расписанием квизов
             {'name': 'ТестКвиз', 'link': 'https://don.testquiz.link/schedule'},
@@ -129,10 +131,11 @@ CITY_DICT = {
         ]
     },
     'Новосибирск': {
-        'bars': ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!'],
-        'qp': 'nsk',
+        'bars': ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!', "Harat's pub"],
+        'ein': 'nsk',
         'li': 'novosibirsk',
         'mama': 'nsk',
+        'qp': 'nsk',
         'wow': 'nsk',
         'local_organizators': []
     },
