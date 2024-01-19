@@ -139,5 +139,12 @@ CITY_DICT = {
         'wow': 'nsk',
         'local_organizators': []
     },
+    'Кемерово': {
+        'bars': ['Hofbräu. 3 этаж. Караоке-бар «Превью».', 'Мюнхен', 'Друзья', 'Luna (бывш. Nieuport)', 'Grill-bar42'],
+        'ein': 'kem',
+        'qp': 'kem',
+        'wow': 'kem',
+        'local_organizators': []
+    },
 
 }
