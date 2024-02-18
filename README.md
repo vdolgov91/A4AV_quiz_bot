@@ -77,6 +77,9 @@
 - [Python 3.10+](https://www.python.org/downloads/)
 - [pip](https://pip.pypa.io/en/stable/installation/)
 - [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+- [Google Chrome](https://www.google.com/chrome/)
+- [ChromeDriver версии совместимой с вашим Google Chrome](https://chromedriver.chromium.org/downloads)
+<br></br>[Хорошая статья по установке Chrome и ChromeDriver на Ubuntu](https://skolo.online/documents/webscrapping/)
 
 1. Скопируйте исходный код проекта с github:
 ```

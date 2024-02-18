@@ -20,9 +20,14 @@
 import datetime
 import logging
 import re
+from time import sleep
 
 import bs4
 import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
 
 from config import (
     CITY_DICT,
@@ -253,10 +258,10 @@ def scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None):
     return games, organizatorErrors
 
 
-def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
+def scrape_mama_quiz(orgLink, orgName, orgTag, dateParams):
     """
     Функция которая скрейпит информацию с сайта Мама Квиз и возвращает список квизов и возникших ошибок.
-    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param orgLink (str): ссылка на веб-страницу с расписанием квизов организатора в конкретном городе
     :param orgName (str): имя организатора ('Мама Квиз')
     :param orgTag (str): тэг организатора ('mama')
     :param dateParams (list): список временных параметров из collect_quiz_data
@@ -266,150 +271,83 @@ def scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams):
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
 
-    # так как информация о квизах на сайте Мама Квиз не упорядочена, мы создаем ряд списков и добавляем
-    # на соответствующую позицию в каждый список информацию о квизе
-    mamaGameNameList = []
-    mamaGameTagList = []
-    mamaDateList = []
-    mamaStartingTimeList = []
-    mamaMonthList = []
-    mamaBarList = []
-    endElementsIndexes = []
+    # т.к. информация в HTML-коде сайта Мама Квиз неструктурирована и невозможно ее достоверно разобрать, то
+    # открываем сайт Мама Квиз с помощью браузера Google Chrome. На сайте для каждой игры есть кнопка
+    # 'ЗАРЕГИСТИРОВАТЬСЯ', нажав ее получаем всю информацию о конкретной игре
 
     try:
-        # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах.
-        # информация не сгруппирована по квизам, дата, название, тема и т.п. по каждому квизу является прямым
-        # дочерним элементом этого элемента.
-        # поэтому для Мама Квиз делаем скрейпинг эвристически:
-        # сначала ищем элемент с местом проведения квиза, это ПРЕДПОЛОЖИТЕЛЬНО всегда будет последний элемент ЗНАЧИМОЙ
-        # информации о квизе, позиции остальных элементов могут меняться, поэтому информация будет извлекаться
-        # регулярными выражениями в интервалах от одного места проведения до другого места проведения
+        options = Options()  # настройки для запуска Google Chrome с помощью ChromeDriver
+        options.add_argument('--no-sandbox')  # чтобы можно было запускать от root
+        options.add_argument('--headless=new')  # чтобы не открывалось само приложение Google Chrome
+        driver = webdriver.Chrome(options=options)
+        driver.get(orgLink)
 
-        # идея на будущее: искать элементы по названию стиля (style="line-height: 67px;"), но там сразу есть проблемы в
-        # том что информация об игре может быть в двух разных стилях (67px и 71px)
+        # у каждой игры есть кнопка зарегистрироваться, находим все такие кнопки
+        registerButtons = driver.find_elements(By.LINK_TEXT, 'ЗАРЕГИСТРИРОВАТЬСЯ')
 
-        mamaElements = quizSoup.select('#rec487013113 > div > div > div')
+        elemWithGame = None
 
-        # ищем элемент с местом проведения квиза в формате 'ул. ' и записываем индексы где хранятся эти элементы
-        # это почти всегда будет последний элемент со значимой информации о квизе, позиции остальных элементов еще менее
-        # стабильны.
-        for i, curSoupElement in enumerate(mamaElements):
-            curElement = str(curSoupElement)
-            tempSoup = bs4.BeautifulSoup(curElement, 'html.parser')
+        # по очереди открываем модальное окно регистрации на каждую игру, извлекаем информацию
+        for b, button in enumerate(registerButtons):
+            sleep(0.5)  # ждем секунду после того как закрыли предыдущую форму, прежде чем кликнуть
             try:
-                result = tempSoup.find("div", {"class": "tn-atom"})
-                tempText = result.text
-                # информация о баре пишется в формате 'MISHKIN&MISHKIN (ул. Нарымская, 37)'
-                if 'ул. ' in tempText:
-                    tempIndex = tempText.index('(')
-                    mamaBar = tempText[:tempIndex - 1]  # отрезаем адрес и пробел перед ним
-                    mamaBarList.append(mamaBar)
-                    endElementsIndexes.append(i)
-                    continue
-
-            except:
+                button.click()
+                # У каждого открывшегося окна регистрации отличается номер form, остальной CSS-селектор идентичный
+                # Информация об игре хранится в тэгах <strong>, находим все такие элементы и среди них находит элемент с
+                # тэгом Игра - такой найдется один на всю карточку
+                curGameWindow = driver.find_elements(By.TAG_NAME, 'strong')
+                for i in range(len(curGameWindow)):
+                    if 'Игра' in curGameWindow[i].text:
+                        elemWithGame = curGameWindow[i]
+                        break
+            except Exception as err:
+                logger.error(f'Мама Квиз: Произошла ошибка при открытии карточки регистрации на {b} игру')
                 continue
 
-        # на основе списка индексов элементов на которые заканчивается информация о квизе формируем
-        # список индексов элементов на которые начинается информация о квизе:
-        # endElementsIndexes   = [20, 40, 61, 81, 101]
-        # startElementsIndexes = [0, 20, 40, 61, 81]
-        startElementsIndexes = endElementsIndexes.copy()
-        startElementsIndexes.insert(0, 0)
-        startElementsIndexes.pop(-1)
+            # если нашли такой элемент, то находим для него родительский элемент и извлекаем из него текст, разбиваем
+            # текст на элементы списка
+            # 'Игра: Классика #132\nМесто проведения: MISHKIN&MISHKIN (ул. Нарымская, 37)\nДата: 18 февраля 2024\n
+            # Сбор команд:17:30\nНачало игры: 18:00\nСтоимость: 400 руб./человек'
 
-        for x, index in enumerate(startElementsIndexes):
-            # ищем информацию в диапазоне между первым элементом текущего квиза startElementsIndexes[x] + 1
-            # и первым элементом следующего endElementsIndexes[x]
-            # startElementsIndexes[x] + 1 - чтобы повторно не смотреть элемент в котором заведомо лежит число
-            # проведения квиза
-            for i in range(startElementsIndexes[x] + 1, endElementsIndexes[x]):
-                curElement = str(mamaElements[i])
-                tempSoup = bs4.BeautifulSoup(curElement, 'html.parser')
+            if elemWithGame:
+                curGameInfo = elemWithGame.find_element(By.XPATH, './..').text.split('\n')
 
-                # пробуем извлечь значение тэга вида <div class="tn-atom" field="tn_text_1681714185448">мая</div>,
-                # если его нет, то по exc продолжаем цикл
-                try:
-                    result = tempSoup.find("div", {"class": "tn-atom"})
-                    tempText = result.text
+                # добавляем в списки информацию об игре.
+                # везде обрезаем заголовки вида "Игра: ", находя индекс элемента : и прибавляя к нему 2 позиции
+                mamaGameName = curGameInfo[0][curGameInfo[0].index(':') + 2:]
+                mamaGameTag = assign_themes_to_quiz(mamaGameName, orgName)
 
-                    # находится много пустых строк, их не обрабатываем
-                    if tempText:
-                        # извлекаем название игры; оно пишется капсом, решеткой и номером игры, ('ТОЛЬКО СЕРИАЛЫ #1')
-                        # праздничные игры пишутся капсом и заканчиваются на год, например, 'КВИЗАНУТЫЙ НОВЫЙ ГОД 2024'
-                        mamaGameNameRegEx = re.compile(r'''
-                                                           ^[^а-яa-z]+        # исключаем строчные буквы
-                                                           (\#\d{1,4}|        # 'решётка' и 1-4 цифры ИЛИ
-                                                            2\d\d\d)$         # 2xxx год в конце названия
-                                                        ''', re.VERBOSE)
-                        mo = mamaGameNameRegEx.search(tempText)
-                        if mo:
-                            mamaGameName = mo.group()
-                            # по названию игры добаляем тэг с тематикой
-                            mamaGameTag = assign_themes_to_quiz(mamaGameName, orgName)
-                            mamaGameNameList.append(mamaGameName)
-                            mamaGameTagList.append(mamaGameTag)
-                            continue  # для этого тэга не делаем других проверок
+                # информация о баре пишется в формате 'MISHKIN&MISHKIN (ул. Нарымская, 37)', отрезаем адрес бара
+                mamaBar = curGameInfo[1][curGameInfo[1].index(':') + 2:]
+                tempIndex = mamaBar.index('(')
+                mamaBar = mamaBar[:tempIndex - 1]  # отрезаем адрес и пробел перед ним
 
-                        # извлекаем время начала игры в формате '18:00'
-                        mamaStartingTimeRegEx = re.compile(r'^\d\d:\d\d$')
-                        mo = mamaStartingTimeRegEx.search(tempText)
-                        if mo:
-                            mamaStartingTime = mo.group()
-                            mamaStartingTimeList.append(mamaStartingTime)
-                            continue
+                # информация о дате проведения пишется в формате '18 февраля 2024', разбираем это регулярными
+                # выражениями
+                mamaDateFullInfo = curGameInfo[2][curGameInfo[2].index(':') + 2:]
+                mamaDateRegEx = re.compile(r'^(\d{1,2})\s+([А-Яа-я]+)\s+(\d\d\d\d)$')
+                mo = mamaDateRegEx.search(mamaDateFullInfo)
+                mamaDay, mamaMonth, mamaYear = mo.groups()
+                # преобразуем текстовое название месяца в цифру с помощью словаря MONTH_DICT
+                mamaMonth = MONTH_DICT[mamaMonth]
 
-                        # извлекаем адрес бара по вхождению слова 'ул.', например, 'MISHKIN&MISHKIN (ул. Нарымская, 37)'
-                        if 'ул. ' in tempText:
-                            tempIndex = tempText.index('(')
-                            mamaBar = tempText[:tempIndex - 1]  # отрезаем адрес и пробел перед ним
-                            mamaBarList.append(mamaBar)
-                            continue
+                mamaStartTime = curGameInfo[4][curGameInfo[4].index(':') + 2:]
+                mamaHour = int(mamaStartTime[:2])
+                mamaMinute = int(mamaStartTime[3:])
 
-                        # извлекаем месяц в формате 'мая'
-                        if tempText in MONTH_DICT:
-                            # преобразуем текстовое название месяца в цифру с помощью словаря MONTH_DICT
-                            mamaMonth = MONTH_DICT[tempText]
-                            mamaMonthList.append(mamaMonth)
-                            continue
+                quizDT = datetime.datetime(int(mamaYear), mamaMonth, int(mamaDay), mamaHour, mamaMinute)
 
-                        # извлекаем число проведения игры
-                        mamaDateRegEx = re.compile(r'^\d{1,2}$')
-                        mo = mamaDateRegEx.search(tempText)
-                        if mo:
-                            mamaDate = mo.group()
-                            mamaDateList.append(mamaDate)
+                # если квиз еще не прошел, то добавляем его в словарь
+                if quizDT >= curDT:
+                    games[orgTag + str(b)] = {}
+                    games[orgTag + str(b)]['game'] = mamaGameName
+                    games[orgTag + str(b)]['date'] = quizDT
+                    games[orgTag + str(b)]['bar'] = mamaBar
+                    games[orgTag + str(b)]['tag'] = mamaGameTag
 
-                except:
-                    continue
+            button.send_keys(Keys.ESCAPE)  # закрываем модальное окно регистрации на игру нажатием ESCAPE
 
-        # получив упорядоченные листы с информацией, преобразуем ее в нужный формат и добавляем в словарь games
-        for q in range(len(mamaGameNameList)):
-            mamaGameName = mamaGameNameList[q]
-            mamaGameTag = mamaGameTagList[q]
-            mamaBar = mamaBarList[q]
-
-            # преобразовываем дату проведения квиза в нужный формат
-            mamaGameStartTime = mamaStartingTimeList[q]
-            mamaHour = int(mamaGameStartTime[:2])
-            mamaMinute = int(mamaGameStartTime[3:])
-            mamaDay = int(mamaDateList[q])
-            mamaMonth = int(mamaMonthList[q])
-
-            # если сейчас декабрь, а расписание содержит январские квизы, то для них указываем в дате следующий год
-            if curMonth == 12 and mamaMonth == 1:
-                quizDT = datetime.datetime(nextYear, mamaMonth, mamaDay, mamaHour, mamaMinute)
-            else:
-                quizDT = datetime.datetime(curYear, mamaMonth, mamaDay, mamaHour, mamaMinute)
-
-            # исключаем из выборки заведомо неподходящие квизы: квиз уже прошел
-            # из остального формируем словарь games
-            if quizDT >= curDT:
-                games[orgTag + str(q)] = {}
-                games[orgTag + str(q)]['game'] = mamaGameName
-                games[orgTag + str(q)]['date'] = quizDT
-                games[orgTag + str(q)]['bar'] = mamaBar
-                games[orgTag + str(q)]['tag'] = mamaGameTag
+        driver.close()  # закрываем браузер
 
     except Exception as err:
         # если при скрэйпиге произошла ошибка, то сохраняем ее в organizatorsErrors
@@ -675,7 +613,9 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
             orgTag = ORGANIZATORS_DICT[orgName][0]
             orgLink = cityLinks[cityOrganizators.index(orgName)]
             try:
-                quizSoup = get_data_from_web_page(orgName, orgLink, localHTMLs)
+                # для Мама Квиз делаем скрейпинг с использованием Selenium, для остальных - стандартным способом
+                if not orgName == 'Мама Квиз':
+                    quizSoup = get_data_from_web_page(orgName, orgLink, localHTMLs)
 
                 if orgName == 'Квиз Плиз':
                     gamesQP, orgErrorsQP = scrape_quiz_please(quizSoup, orgName, orgTag, dateParams)
@@ -690,7 +630,7 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
                     organizatorErrors = {**organizatorErrors, **orgErrorsLI}
 
                 elif orgName == 'Мама Квиз':
-                    gamesMama, orgErrorsMama = scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams)
+                    gamesMama, orgErrorsMama = scrape_mama_quiz(orgLink, orgName, orgTag, dateParams)
                     games = {**games, **gamesMama}
                     organizatorErrors = {**organizatorErrors, **orgErrorsMama}
 

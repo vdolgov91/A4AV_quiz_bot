@@ -223,11 +223,10 @@ class TestCollectQuizData:
         """Проверяем количество извлеченных квизов с локальных копий веб-страниц из папки ./tests/saved_web_pages
         einstein_party_schedule_2024-01-19.html - 2 (1 в резерве)
         ligaindigo_schedule_2023-12-14.html - 1
-        mamaquiz_schedule_2023-12-14.html - 5 (одна 13 декабря, поэтому дату задаем 13.12)
         quizplease_schedule_2023-12-14.html - 3 (остальные резерв и должны быть отброшены)
         wowquiz_schedule_2023-12-20.html - 6 (остальные резерв и должны быть отброшены)
         """
-        expected = 1 + 5 + 3 + 6 + 2
+        expected = 1 + 3 + 6 + 2
         localQuizes = quiz_from_local_files[0]
         assert len(localQuizes) == expected
 
@@ -236,18 +235,6 @@ class TestCollectQuizData:
         """Проверяем что названия игр извлеклись правильно, сравнивая с эталонными значениями"""
         expectedGameParams = [value[gameParam] for key, value in expected_games.items()]
         returnedGameParams = [value[gameParam] for key, value in quiz_from_local_files[0].items()]
-        assert returnedGameParams == expectedGameParams
-
-    def test_mock_mama_quiz_errors(self, mama_quiz_from_local_files):
-        """Проверяем отсутствие ошибок при скрейпинге локальных копий страниц сайта 'Мама Квиз'"""
-        organizatorErrors = mama_quiz_from_local_files[1]
-        assert organizatorErrors == {}
-
-    @pytest.mark.parametrize('gameParam', ['game', 'date', 'bar', 'tag'])
-    def test_mock_mama_quiz_params(self, mama_quiz_from_local_files, expected_games_mama_quiz, gameParam):
-        """Проверяем правильность параметров с нескольких различных копий сайта 'Мама Квиз"""
-        expectedGameParams = [value[gameParam] for key, value in expected_games_mama_quiz.items()]
-        returnedGameParams = [value[gameParam] for key, value in mama_quiz_from_local_files[0].items()]
         assert returnedGameParams == expectedGameParams
 
     def test_real_games_collected_some_games(self, quiz_from_real_web_sites):
@@ -294,23 +281,18 @@ class TestCreateFormattedQuizList:
         selected_theme = 'Оставить все'
         excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
         expectedQuizList = [
-'1. <b>Мама Квиз</b>: КВИЗАНУТЫЙ НОВЫЙ ГОД 2024. Бар: MISHKIN&MISHKIN, среда, 13 декабря, 19:30\n',
-'2. <b>Квиз Плиз</b>: Квиз, плиз! NSK #567. Бар: Арт П.А.Б., четверг, 14 декабря, 20:00\n',
-'3. <b>Лига Индиго</b>: Новый год СССР. Бар: Три Лося, понедельник, 18 декабря, 19:30\n',
-'4. <b>Квиз Плиз</b>: Квиз, плиз! NSK #569. Бар: Арт П.А.Б., вторник, 19 декабря, 20:00\n',
-'5. <b>Квиз Плиз</b>: Квиз, плиз! NSK #570. Бар: Арт П.А.Б., четверг, 21 декабря, 20:00\n',
-'6. <b>WOW Quiz</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
-'7. <b>Мама Квиз</b>: АЛКОКВИЗ #2. Бар: MISHKIN&MISHKIN, среда, 3 января, 14:00\n',
-'8. <b>WOW Quiz</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
-'9. <b>Мама Квиз</b>: КИНОМЬЮЗИК: НОВОГОДНИЙ #2. Бар: MISHKIN&MISHKIN, четверг, 4 января, 14:00\n',
-'10. <b>WOW Quiz</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
-'11. <b>Мама Квиз</b>: ЛОГИКА ГДЕ? #14. Бар: MISHKIN&MISHKIN, пятница, 5 января, 14:00\n',
-'12. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
-'13. <b>Мама Квиз</b>: КЛАССИКА #128. Бар: MISHKIN&MISHKIN, суббота, 6 января, 14:00\n',
-'14. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
-'15. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n',
-'16. <b>Эйнштейн пати</b>: Кино. Бар: Типография, вторник, 23 января, 19:30\n',
-'17. <b>Эйнштейн пати</b>: Нулевые (00е). Бар: Типография, воскресенье, 28 января, 16:00\n',
+'1. <b>Квиз Плиз</b>: Квиз, плиз! NSK #567. Бар: Арт П.А.Б., четверг, 14 декабря, 20:00\n',
+'2. <b>Лига Индиго</b>: Новый год СССР. Бар: Три Лося, понедельник, 18 декабря, 19:30\n',
+'3. <b>Квиз Плиз</b>: Квиз, плиз! NSK #569. Бар: Арт П.А.Б., вторник, 19 декабря, 20:00\n',
+'4. <b>Квиз Плиз</b>: Квиз, плиз! NSK #570. Бар: Арт П.А.Б., четверг, 21 декабря, 20:00\n',
+'5. <b>WOW Quiz</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
+'6. <b>WOW Quiz</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
+'7. <b>WOW Quiz</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
+'8. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+'9. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
+'10. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, 16:00\n',
+'11. <b>Эйнштейн пати</b>: Кино. Бар: Типография, вторник, 23 января, 19:30\n',
+'12. <b>Эйнштейн пати</b>: Нулевые (00е). Бар: Типография, воскресенье, 28 января, 16:00\n',
 ]
         returnedQuizList = quizAggregator.create_formatted_quiz_list(expected_games, organizatorErrors, dow=dow,
                                                                      selected_theme=selected_theme, excl_bar=excl_bar,
@@ -357,7 +339,6 @@ class TestCreateFormattedQuizList:
             '2. <b>Квиз Плиз</b>: Квиз, плиз! NSK #569. Бар: Арт П.А.Б., вторник, 19 декабря, 20:00\n',
             '3. <b>Квиз Плиз</b>: Квиз, плиз! NSK #570. Бар: Арт П.А.Б., четверг, 21 декабря, 20:00\n',
             '4. <b>WOW Quiz</b>: Обо всём. Похмельно-новогодняя #47 . Бар: Три Лося, вторник, 2 января, 16:00\n',
-            '5. <b>Мама Квиз</b>: КЛАССИКА #128. Бар: MISHKIN&MISHKIN, суббота, 6 января, 14:00\n'
         ]
         returnedQuizList = quizAggregator.create_formatted_quiz_list(expected_games, organizatorErrors, dow=dow,
                                                                      selected_theme=selected_theme, excl_bar=excl_bar,
@@ -372,13 +353,12 @@ class TestCreateFormattedQuizList:
         excl_bar, excl_theme, excl_orgs = 'None', 'None', 'None'
         expectedQuizList = [
             '1. <b>WOW Quiz</b>: Угадай мелодию. Русское (туры по жанрам). Бар: Три Лося, среда, 3 января, 16:00\n',
-            '2. <b>Мама Квиз</b>: КИНОМЬЮЗИК: НОВОГОДНИЙ #2. Бар: MISHKIN&MISHKIN, четверг, 4 января, 14:00\n',
-            '3. <b>WOW Quiz</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
-            '4. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
-            '5. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
-            '6. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, '
+            '2. <b>WOW Quiz</b>: Топовые кино, мультфильмы, сериалы #4. Бар: Три Лося, четверг, 4 января, 16:00\n',
+            '3. <b>WOW Quiz</b>: Советское кино #2 (туры по 5 фильмам). Бар: Три Лося, пятница, 5 января, 16:00\n',
+            '4. <b>WOW Quiz</b>: РУсская музыка 90-х и 00-х #2. Бар: Три Лося, суббота, 6 января, 16:00\n',
+            '5. <b>WOW Quiz</b>: Гарри Поттер лайт #29 (с туром про рождество). Бар: Три Лося, воскресенье, 7 января, '
             '16:00\n',
-            '7. <b>Эйнштейн пати</b>: Кино. Бар: Типография, вторник, 23 января, 19:30\n',
+            '6. <b>Эйнштейн пати</b>: Кино. Бар: Типография, вторник, 23 января, 19:30\n',
         ]
         returnedQuizList = quizAggregator.create_formatted_quiz_list(expected_games, organizatorErrors, dow=dow,
                                                                      selected_theme=selected_theme, excl_bar=excl_bar,
