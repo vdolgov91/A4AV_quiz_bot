@@ -55,6 +55,7 @@ logging.getLogger('telegram').setLevel(logging.INFO)
 logging.getLogger('asyncio').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('selenium').setLevel(logging.WARNING)
 
 # states которые используются в объекте conv_handler функции main() для навигации между пользовательскими функциями.
 # функция возвращает свой state, хэндлер по фильтрам заданным для этого state анализирует ввод пользователя и на его
