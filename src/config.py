@@ -134,7 +134,6 @@ CITY_DICT = {
         'bars': ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!', "Harat's pub"],
         'ein': 'nsk',
         'li': 'novosibirsk',
-        'mama': 'nsk',
         'qp': 'nsk',
         'wow': 'nsk',
         'local_organizators': []
