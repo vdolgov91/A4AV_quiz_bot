@@ -7,10 +7,11 @@
     create_formatted_quiz_list(games, organizatorErrors, **kwargs) - создает итоговый список квизов для telegramBot.py
     create_info_by_city(city) - формирует информацию об организаторах, барах, ссылках на сайты для конкретного города
     get_data_from_web_page(orgName, orgLink, localHTMLs) - делает веб-запрос страницы организатора с расписанием квизов
+    scrape_einstein_party(quizSoup, orgName, orgTag, dateParams) скрейпит информацию с сайта Эйнштейн пати
     scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None) - скрейпит информацию с сайта Лига Индиго
     scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Мама Квиз
     scrape_quiz_please(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Квиз Плиз
-    scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams) - - скрейпит информацию с сайтов Wow Quiz/ Эйнштейн пати
+    scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Wow Quiz
 
 Содержит константы:
     DOW_DICT - словарь соответствия порядкового номера дня недели его названию (1: 'понедельник')
@@ -166,6 +167,97 @@ def get_data_from_web_page(orgName, orgLink, localHTMLs):
 
     return bs4.BeautifulSoup(res.text, 'html.parser')
 
+
+def scrape_einstein_party(quizSoup, orgName, orgTag, dateParams):
+    """
+    Функция которая скрейпит информацию с сайта Эйнштейн пати и возвращает список квизов и возникших ошибок.
+    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param orgName (str): имя организатора ('Эйнштейн пати')
+    :param orgTag (str): тэг организатора ('ein')
+    :param dateParams (list): список временных параметров из collect_quiz_data
+    :return: games (dict), organizatorErrors (dict)
+    """
+    games = {}
+    organizatorErrors = {}
+    curYear, nextYear, curMonth, curDT = dateParams
+
+    try:
+        # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах
+        einGamesList = quizSoup.select('body > div.wrapper > div.schelude-tabs > div.schelude-tabs-body > div > div > '
+                                      'div > div > div > div.game-row > div')
+        for n in range(1, (len(einGamesList) + 1)):
+            # формируем корректный id квиза, который будет являться префиксом для CSS-селекторов нужных элементов
+            selectorBeginning = f'body > div.wrapper > div.schelude-tabs > div.schelude-tabs-body > div > div > div > '\
+                                f'div > div > div.game-row > div:nth-child({n})'
+
+            # извлекаем название игры в формате "Угадай мультфильм #4"
+            einGameName = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
+                                         f'div.game-item-content-left > div.game-item-top > div.game-item__title')
+            einGameName = einGameName[0].text
+
+            # по названию игры добаляем тэг с тематикой игры
+            einGameTag = assign_themes_to_quiz(einGameName, orgName)
+
+            # извлекаем дату проведения квиза в формате "4 июня"
+            einGameDate = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
+                                          f'div.game-item-content-right > div.game-item__date > span:nth-child(1)')
+            einGameDate = einGameDate[0].text
+
+            # извлекаем день недели в формате "суббота"
+            einGameDOW = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
+                                         f'div.game-item-content-right > div.game-item__date > span:nth-child(2)')
+            einGameDOW = einGameDOW[0].text
+
+            # извлекаем время начала квиза в формате "16:00"
+            einGameStartTime = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
+                                               f'div.game-item-content-right > div.game-item__date > span.time')
+            einGameStartTime = einGameStartTime[0].text
+
+            # извлекаем название площадки проведения квиза в формате "Три Лося"
+            einBar = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
+                                     f'div.game-item-content-right > div.game-item__address > span.place')
+            einBar = einBar[0].text
+
+            # извлекаем наличие мест на игру вида "Места есть"/ "Резерв"
+            einAvailability = quizSoup.select(f'{selectorBeginning} > div > div.game-item-bottom > '
+                                                  f'div.game-item-buttons > a.game-item__btn.active.register_team > '
+                                                  f'span')
+
+            einAvailability = einAvailability[0].text
+
+            # преобразовываем дату проведения квиза в нужный формат
+            einHour = int(einGameStartTime[:2])
+            einMinute = int(einGameStartTime[3:])
+            einDateRegEx = re.compile(r'''
+                                    ^(\d|\d\d)\s        # одна или две цифры в начале строки, после пробел
+                                     ([А-Яа-я]+)        # месяц
+                                    ''', re.VERBOSE)
+            mo = einDateRegEx.search(einGameDate)
+            einDay, einMonth = mo.groups()
+            einDay = int(einDay)
+            # преобразуем текстовое название месяца в цифру с помощью словаря MONTH_DICT
+            einMonth = MONTH_DICT[einMonth]
+
+            # если сейчас декабрь, а расписание содержит январские квизы, то для них указываем в дате следующий год
+            if curMonth == 12 and einMonth == 1:
+                quizDT = datetime.datetime(nextYear, einMonth, einDay, einHour, einMinute)
+            else:
+                quizDT = datetime.datetime(curYear, einMonth, einDay, einHour, einMinute)
+
+            # исключаем из выборки заведомо неподходящие квизы: нет мест, квиз уже прошел
+            # из остального формируем словарь games
+            if einAvailability.lower() != 'резерв' and quizDT >= curDT:
+                games[orgTag + str(n)] = {}
+                games[orgTag + str(n)]['game'] = einGameName
+                games[orgTag + str(n)]['date'] = quizDT
+                games[orgTag + str(n)]['bar'] = einBar
+                games[orgTag + str(n)]['tag'] = einGameTag
+
+    except Exception as err:
+        # если при скрэйпиге произошла ошибка, то сохраняем ее в organizatorsErrors
+        organizatorErrors[orgName] = str(err)
+
+    return games, organizatorErrors
 
 def scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None):
     """
@@ -635,9 +727,7 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
                     organizatorErrors = {**organizatorErrors, **orgErrorsMama}
 
                 elif orgName == 'Эйнштейн пати':
-                    # т.к. ранее WOW Quiz и Эйнштейн пати были одним организатором, после разделения у них остались
-                    # сайты с одинаковой структурой, поэтому для Эйшнтейн пати переиспользуем функцию WOW Quiz
-                    gamesWow, orgErrorsWow = scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams)
+                    gamesWow, orgErrorsWow = scrape_einstein_party(quizSoup, orgName, orgTag, dateParams)
                     games = {**games, **gamesWow}
                     organizatorErrors = {**organizatorErrors, **orgErrorsWow}
 
