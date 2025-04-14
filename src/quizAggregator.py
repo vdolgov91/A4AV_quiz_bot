@@ -384,7 +384,7 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
             используемых при unit-тестировании.
             Само id '0558' хранится в curElement.attrs['id'][1:]/
             '''
-            for selectorNum in range(36, 100):
+            for selectorNum in range(30, 100):
                 try:
                     selectorBeginning = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
                     testElem = quizSoup.select(rf'{selectorBeginning} > div > div.h3.h3')
