@@ -131,7 +131,7 @@ CITY_DICT = {
         ]
     },
     'Новосибирск': {
-        'bars': ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!', "Harat's pub"],
+        'bars': ['Три лося', 'Mishkin&Mishkin', 'Арт П.А.Б.', 'Максимилианс', 'Типография', 'Руки ВВерх!', "Harat's pub", 'Golden Thompson'],
         'ein': 'nsk',
         'li': 'novosibirsk',
         'qp': 'nsk',

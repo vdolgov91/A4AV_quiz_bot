@@ -9,9 +9,9 @@
     get_data_from_web_page(orgName, orgLink, localHTMLs) - делает веб-запрос страницы организатора с расписанием квизов
     scrape_einstein_party(quizSoup, orgName, orgTag, dateParams) скрейпит информацию с сайта Эйнштейн пати
     scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None) - скрейпит информацию с сайта Лига Индиго
-    scrape_mama_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Мама Квиз
+    scrape_mama_quiz(orgLink, orgName, orgTag, dateParams) - скрейпит информацию с сайта Мама Квиз
     scrape_quiz_please(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Квиз Плиз
-    scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Wow Quiz
+    scrape_wow_quiz(orgLink, orgName, orgTag, dateParams) - скрейпит информацию с сайта Wow Quiz
 
 Содержит константы:
     DOW_DICT - словарь соответствия порядкового номера дня недели его названию (1: 'понедельник')
@@ -26,6 +26,8 @@ from time import sleep
 import bs4
 import requests
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
@@ -574,10 +576,10 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
     return games, organizatorErrors
 
 
-def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
+def scrape_wow_quiz(orgLink, orgName, orgTag, dateParams):
     """
-    Функция которая скрейпит информацию с сайтов WOW Quiz/ Эйнштейн пати и возвращает список квизов и возникших ошибок.
-    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    Функция которая скрейпит информацию с сайтов WOW Quiz и возвращает список квизов и возникших ошибок.
+    :param orgLink (str): ссылка на веб-страницу с расписанием квизов организатора в конкретном городе
     :param orgName (str): имя организатора ('WOW Quiz')
     :param orgTag (str): тэг организатора ('wow')
     :param dateParams (list): список временных параметров из collect_quiz_data
@@ -588,56 +590,62 @@ def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
     curYear, nextYear, curMonth, curDT = dateParams
 
     try:
-        # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах
-        wowGamesList = quizSoup.select('body > div.wrapper > div.schelude-tabs > div.schelude-tabs-body > div > div > '
-                                      'div > div > div > div.game-row > div')
-        for n in range(1, (len(wowGamesList) + 1)):
-            # формируем корректный id квиза, который будет являться префиксом для CSS-селекторов нужных элементов
-            selectorBeginning = f'body > div.wrapper > div.schelude-tabs > div.schelude-tabs-body > div > div > div > '\
-                                f'div > div > div.game-row > div:nth-child({n})'
+        options = Options()  # настройки для запуска Google Chrome с помощью ChromeDriver
+        options.add_argument('--no-sandbox')  # чтобы можно было запускать от root
+        options.add_argument('--headless=new')  # чтобы не открывалось само приложение Google Chrome
+        driver = webdriver.Chrome(options=options)
+        driver.get(orgLink)
+        # ждем чтобы подгрузился изначальный список квизов
+        import time
+        time.sleep(2)
 
+        # нажимаем кнопку "Загрузить" несколько раз, чтобы загрузить полный список квизов. Когда загрузятся все квизы, кнопка "Загрузить" пропадет
+        while True:
+            try:
+                loadMoreButton = driver.find_element(By.CSS_SELECTOR, ".btn.schedule__load-btn.outline-1")
+                # проскролливаем экран до кнопки, чтобы дать ей время полностью загрузиться. Когда она загрузилась - жмем кнопку
+                ActionChains(driver).move_to_element(loadMoreButton).click().perform()
+                time.sleep(0.3)
+            except NoSuchElementException:
+                break
+
+        # находим элемент с расписанием всех квизов, внутри него находим элементы с информацией по каждому квизу
+        parentElement = driver.find_element(By.CSS_SELECTOR, "#schedule > div.schedule__list")
+        quizList = parentElement.find_elements(By.CLASS_NAME, "schedule-card")
+
+        for n, child in enumerate(quizList):
             # извлекаем название игры в формате "Угадай мультфильм #4"
-            wowGameName = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
-                                         f'div.game-item-content-left > div.game-item-top > div.game-item__title')
-            wowGameName = wowGameName[0].text
+            wowGameName = child.find_element(By.CLASS_NAME, "schedule-card__title")
+            wowGameName = wowGameName.text
 
             # по названию игры добаляем тэг с тематикой игры
             wowGameTag = assign_themes_to_quiz(wowGameName, orgName)
 
-            # извлекаем дату проведения квиза в формате "4 июня"
-            wowGameDate = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
-                                          f'div.game-item-content-right > div.game-item__date > span:nth-child(1)')
-            wowGameDate = wowGameDate[0].text
+            # находим элемент details, в нем хранятся дата проведения, время начала и цена
+            detailsElement = child.find_elements(By.CLASS_NAME, "schedule-card__details-item")
 
-            # извлекаем день недели в формате "суббота"
-            wowGameDOW = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
-                                         f'div.game-item-content-right > div.game-item__date > span:nth-child(2)')
-            wowGameDOW = wowGameDOW[0].text
+            # извлекаем дату проведения квиза в формате "Дата\n15 апреля, вторник"
+            wowGameDateAndDOW = detailsElement[0]
+            wowGameDateAndDOW = wowGameDateAndDOW.text[5:]  # отрезаем "Дата\n"
+            # разделяем 15 апреля, вторник на две переменных; с помощью strip убираем пробел перед днём недели
+            wowGameDate, separator, wowGameDOW = wowGameDateAndDOW.partition(",")
+            wowGameDOW = wowGameDOW.strip()
 
-            # извлекаем время начала квиза в формате "16:00"
-            wowGameStartTime = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
-                                               f'div.game-item-content-right > div.game-item__date > span.time')
-            wowGameStartTime = wowGameStartTime[0].text
+            # извлекаем время начала квиза в формате "Время\n16:00"
+            wowGameStartTime = detailsElement[1]
+            wowGameStartTime = wowGameStartTime.text[6:]  # отрезаем "Время\n"
 
             # извлекаем название площадки проведения квиза в формате "Три Лося"
-            wowBar = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
-                                     f'div.game-item-content-right > div.game-item__address > span.place')
-            wowBar = wowBar[0].text
+            wowBar = child.find_element(By.CLASS_NAME, "schedule-card__bar")
+            wowBar = wowBar.text
 
             # извлекаем наличие мест на игру вида "Места есть"/ "Резерв"
-            # на настоящий момент единственное различение при скрейпинге WOW Quiz и Эйнштейн пати
-            if orgName == 'WOW Quiz':
-                wowAvailability = quizSoup.select(f'{selectorBeginning} > div > div.game-item-content > '
-                                              f'div.game-item-content-right > span')
-            elif orgName == 'Эйнштейн пати':
-                wowAvailability = quizSoup.select(f'{selectorBeginning} > div > div.game-item-bottom > '
-                                                  f'div.game-item-buttons > a.game-item__btn.active.register_team > '
-                                                  f'span')
-
-            wowAvailability = wowAvailability[0].text
+            wowAvailability = child.find_element(By.CLASS_NAME, "schedule-card__status")
+            wowAvailability = wowAvailability.text
 
             # преобразовываем дату проведения квиза в нужный формат
             wowHour = int(wowGameStartTime[:2])
+
             wowMinute = int(wowGameStartTime[3:])
             wowDateRegEx = re.compile(r'''
                                     ^(\d|\d\d)\s        # одна или две цифры в начале строки, после пробел
@@ -663,6 +671,9 @@ def scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams):
                 games[orgTag + str(n)]['date'] = quizDT
                 games[orgTag + str(n)]['bar'] = wowBar
                 games[orgTag + str(n)]['tag'] = wowGameTag
+
+        # закрываем браузер
+        driver.close()
 
     except Exception as err:
         # если при скрэйпиге произошла ошибка, то сохраняем ее в organizatorsErrors
@@ -705,8 +716,9 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
             orgTag = ORGANIZATORS_DICT[orgName][0]
             orgLink = cityLinks[cityOrganizators.index(orgName)]
             try:
-                # для Мама Квиз делаем скрейпинг с использованием Selenium, для остальных - стандартным способом
-                if not orgName == 'Мама Квиз':
+                # для Мама Квиз и WOW Quiz делаем скрейпинг с использованием Selenium, для остальных - стандартным
+                # способом
+                if orgName not in ('Мама Квиз', 'WOW Quiz'):
                     quizSoup = get_data_from_web_page(orgName, orgLink, localHTMLs)
 
                 if orgName == 'Квиз Плиз':
@@ -732,7 +744,7 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
                     organizatorErrors = {**organizatorErrors, **orgErrorsWow}
 
                 elif orgName == 'WOW Quiz':
-                    gamesWow, orgErrorsWow = scrape_wow_quiz(quizSoup, orgName, orgTag, dateParams)
+                    gamesWow, orgErrorsWow = scrape_wow_quiz(orgLink, orgName, orgTag, dateParams)
                     games = {**games, **gamesWow}
                     organizatorErrors = {**organizatorErrors, **orgErrorsWow}
 
