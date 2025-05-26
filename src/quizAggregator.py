@@ -626,14 +626,14 @@ def scrape_wow_quiz(orgLink, orgName, orgTag, dateParams):
 
             # извлекаем дату проведения квиза в формате "Дата\n15 апреля, вторник"
             wowGameDateAndDOW = detailsElement[0]
-            wowGameDateAndDOW = wowGameDateAndDOW.text[5:]  # отрезаем "Дата\n"
+            wowGameDateAndDOW = wowGameDateAndDOW.text
             # разделяем 15 апреля, вторник на две переменных; с помощью strip убираем пробел перед днём недели
             wowGameDate, separator, wowGameDOW = wowGameDateAndDOW.partition(",")
             wowGameDOW = wowGameDOW.strip()
 
             # извлекаем время начала квиза в формате "Время\n16:00"
             wowGameStartTime = detailsElement[1]
-            wowGameStartTime = wowGameStartTime.text[6:]  # отрезаем "Время\n"
+            wowGameStartTime = wowGameStartTime.text
 
             # извлекаем название площадки проведения квиза в формате "Три Лося"
             wowBar = child.find_element(By.CLASS_NAME, "schedule-card__bar")
