@@ -9,6 +9,7 @@
 Берет информацию с сайтов следующих организаторов:
 * [Квиз Плиз](https://nsk.quizplease.ru/schedule)
 * [Лига Индиго](https://ligaindigo.ru/novosibirsk)
+* [Шейкер Квиз](https://novosibirsk.shakerquiz.ru/)
 * [Эйнштейн пати](https://nsk.albertparty.ru/schedule)
 * [WOW Quiz](https://nsk.wowquiz.ru/)
 

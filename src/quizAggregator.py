@@ -11,6 +11,7 @@
     scrape_liga_indigo(quizSoup, orgName, orgTag, dateParams, localHTMLs=None) - скрейпит информацию с сайта Лига Индиго
     scrape_mama_quiz(orgLink, orgName, orgTag, dateParams) - скрейпит информацию с сайта Мама Квиз
     scrape_quiz_please(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Квиз Плиз
+    scrape_shaker_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Шейкер Квиз
     scrape_wow_quiz(orgLink, orgName, orgTag, dateParams) - скрейпит информацию с сайта Wow Quiz
 
 Содержит константы:
@@ -19,6 +20,7 @@
 """
 
 import datetime
+import json
 import logging
 import re
 from time import sleep
@@ -134,7 +136,7 @@ def assign_themes_to_quiz(gamename, organizator):
 
     for k in THEME_MAPPING_DICT:          # перебираем все тематики ('Классика')
          for j in THEME_MAPPING_DICT[k]:  # перебираем все тэги внутри тематики (['18+', 'чёрный квиз'])
-             if j in gamename:            # j = тэг из словаря ('чёрный квиз')
+             if j.lower() in gamename:    # j = тэг из словаря ('чёрный квиз')
                 tags.append(k)
                 break  # прекращаем проверять другие тэги внутри уже присвоенной тематики, переходим к следующему k
     return tags
@@ -576,6 +578,55 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
     return games, organizatorErrors
 
 
+def scrape_shaker_quiz(quizSoup, orgName, orgTag, dateParams):
+    """
+    Функция которая скрейпит информацию с сайта Шейкер Квиз и возвращает список квизов и возникших ошибок.
+    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param orgName (str): имя организатора ('Шейкер Квиз')
+    :param orgTag (str): тэг организатора ('shaker')
+    :param dateParams (list): список временных параметров из collect_quiz_data
+    :return: games (dict), organizatorErrors (dict)
+    """
+    games = {}
+    organizatorErrors = {}
+    curYear, nextYear, curMonth, curDT = dateParams
+    try:
+        # у Шейкер Квиза вся информация хранится в JSON-структуре c id __NEXT_DATA__
+        shakerData = quizSoup.find('script', id='__NEXT_DATA__')
+        shakerData = json.loads(shakerData.string)
+        shakerGamesList = shakerData['props']['pageProps']['games']
+        for n, shakerGame in enumerate(shakerGamesList):
+            shakerGameName = shakerGame['theme']['name']
+            shakerGameNumber = shakerGame.get('number')
+            if shakerGameNumber:
+                shakerGameName += f" #{shakerGameNumber}"
+
+            shakerGameTag = assign_themes_to_quiz(shakerGameName, orgName)
+            shakerGameDateString = shakerGame['event_time']
+
+            # в отличие от других квизов у Шейкера время лежит сразу в ISO формате,
+            # но надо отрезать информацию о часовом поясе для возможности сравнения с curDT, в котором нет часового пояса
+            shakerDT = datetime.datetime.fromisoformat(shakerGameDateString.replace('Z', '+07:00')).replace(tzinfo=None)
+            shakerBar = shakerGame['venue']['name']
+            # TODO: пока вижу только статус 'PUBLISHED', может есть другие нормальные
+            shakerAvailability = shakerGame['status']
+
+            # исключаем из выборки заведомо неподходящие квизы: нет мест, квиз уже прошел
+            # из остального формируем словарь games
+            if shakerAvailability.lower() == 'published' and shakerDT >= curDT:
+                games[orgTag + str(n + 1)] = {}
+                games[orgTag + str(n + 1)]['game'] = shakerGameName
+                games[orgTag + str(n + 1)]['date'] = shakerDT
+                games[orgTag + str(n + 1)]['bar'] = shakerBar
+                games[orgTag + str(n + 1)]['tag'] = shakerGameTag
+
+    except Exception as err:
+        # если при скрэйпиге произошла ошибка, то сохраняем ее в organizatorsErrors
+        organizatorErrors[orgName] = str(err)
+
+    return games, organizatorErrors
+
+
 def scrape_wow_quiz(orgLink, orgName, orgTag, dateParams):
     """
     Функция которая скрейпит информацию с сайтов WOW Quiz и возвращает список квизов и возникших ошибок.
@@ -737,6 +788,11 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
                     gamesMama, orgErrorsMama = scrape_mama_quiz(orgLink, orgName, orgTag, dateParams)
                     games = {**games, **gamesMama}
                     organizatorErrors = {**organizatorErrors, **orgErrorsMama}
+
+                elif orgName == 'Шейкер Квиз':
+                    gamesShaker, orgErrorsShaker = scrape_shaker_quiz(quizSoup, orgName, orgTag, dateParams)
+                    games = {**games, **gamesShaker}
+                    organizatorErrors = {**organizatorErrors, **orgErrorsShaker}
 
                 elif orgName == 'Эйнштейн пати':
                     gamesWow, orgErrorsWow = scrape_einstein_party(quizSoup, orgName, orgTag, dateParams)
