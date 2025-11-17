@@ -154,7 +154,7 @@ def get_data_from_web_page(orgName, orgLink, localHTMLs):
 
     # если скрейпим страницу Мама Квиз, нужно добавить в запрос HTTP-заголовк User-agent,
     # значение можно взять из своего браузера. без него вернет ошибку 403 Forbidden
-    if orgName == 'Мама Квиз' and len(localHTMLs) == 0:
+    if orgName in ['Квиз Плиз', 'Мама Квиз'] and len(localHTMLs) == 0:
         userAgent = {'User-agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36'}
         res = requests.get(orgLink, headers=userAgent)
