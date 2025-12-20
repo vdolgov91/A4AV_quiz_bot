@@ -716,7 +716,7 @@ def scrape_wow_quiz(orgLink, orgName, orgTag, dateParams):
 
             # исключаем из выборки заведомо неподходящие квизы: нет мест, квиз уже прошел
             # из остального формируем словарь games
-            if wowAvailability.lower() != 'резерв' and quizDT >= curDT:
+            if wowAvailability.lower() not in ['резерв', 'мест нет'] and quizDT >= curDT:
                 games[orgTag + str(n)] = {}
                 games[orgTag + str(n)]['game'] = wowGameName
                 games[orgTag + str(n)]['date'] = quizDT
