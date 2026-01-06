@@ -522,7 +522,7 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
                 f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > div:nth-child(2) > div > div')
             qpStartTime = qpStartTime[0].get_text(strip=True)
             # у бара 'Максимилианс' время хранится другом элементе (div:nth-child(3))
-            if qpStartTime == 'Максимилианс':
+            if 'Максимилианс' in qpBar:
                 qpStartTime = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > '
                                               f'div:nth-child(3) > div > div')
                 qpStartTime = qpStartTime[0].get_text(strip=True)
@@ -881,8 +881,18 @@ def create_formatted_quiz_list(games, organizatorErrors, **kwargs):
             # делаем форматирование, чтобы название организатора выводилось жирным шрифтом. '<b>Лига Индиго</b>'
             organizator = '<b>' + curOrgName + '</b>'
 
+        # нормализуем название бара, если оно есть в config.CITY_DICT
+        # TODO: сделать параметризируемым, пока хардкод для Новосибирска
+        barNormalizedName = games[i]['bar']
+        barNormalizedName = barNormalizedName.replace("`", "'")  # для единообразного написания Harat's pub
+        cityBarList = CITY_DICT['Новосибирск']['bars']
+        for bar in cityBarList:
+            if bar.lower() in barNormalizedName.lower():
+                barNormalizedName = bar
+                break
+
         # исключаем из выборки места проведения квизов, перманентно исключенные пользователем из выборки в /preferences
-        if games[i]['bar'].lower() in excl_bar.lower():
+        if barNormalizedName.lower() in excl_bar.lower():
             continue
 
         # оставляем только ту тематику, которую пользователь выбрал в ходе чата
@@ -933,7 +943,7 @@ def create_formatted_quiz_list(games, organizatorErrors, **kwargs):
 
             # делаем итоговое форматирование строки о квизе вида:
             # 1. <b>Лига Индиго</b>: Игра №1 Сезон №11. Бар: Три Лося, понедельник, 15 января, 19:30\n'
-            quizReadable = f"{k}. {organizator}: {games[i]['game']}. Бар: {games[i]['bar']}, {quizDOWReadable}, " \
+            quizReadable = f"{k}. {organizator}: {games[i]['game']}. Бар: {barNormalizedName}, {quizDOWReadable}, " \
                            f"{quizDateReadable}\n"
             quizList.append(quizReadable)
 
