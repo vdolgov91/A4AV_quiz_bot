@@ -248,14 +248,17 @@ def scrape_einstein_party(quizSoup, orgName, orgTag, dateParams):
             else:
                 quizDT = datetime.datetime(curYear, einMonth, einDay, einHour, einMinute)
 
-            # исключаем из выборки заведомо неподходящие квизы: нет мест, квиз уже прошел
+            # исключаем из выборки заведомо неподходящие квизы: квиз уже прошел
             # из остального формируем словарь games
-            if einAvailability.lower() != 'резерв' and quizDT >= curDT:
+            if quizDT >= curDT:
                 games[orgTag + str(n)] = {}
                 games[orgTag + str(n)]['game'] = einGameName
                 games[orgTag + str(n)]['date'] = quizDT
                 games[orgTag + str(n)]['bar'] = einBar
                 games[orgTag + str(n)]['tag'] = einGameTag
+                if 'резерв' in einAvailability.lower():
+                    games[orgTag + str(n)]['availability'] = 'Резерв'
+
 
     except Exception as err:
         # если при скрэйпиге произошла ошибка, то сохраняем ее в organizatorsErrors
@@ -532,10 +535,18 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
             qpMinute = int(qpStartTime[3:])
 
             # извлекаем наличие мест на игру вида: "Нет мест! Но можно записаться в резерв"/ "Осталось мало мест"
+            # информация о том что места есть и о том что запись резерв хранится в разных элементах, запрашиваем их
+            # поочередно
             qpPlacesLeft = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom > '
                                            f'div.game-status.schedule-available.w-clearfix > div')
             if len(qpPlacesLeft) > 0:
                 qpPlacesLeft = qpPlacesLeft[0].get_text(strip=True)
+            else:
+                qpPlacesLeft = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom.w-clearfix > '
+                                               f'div.game-status.schedule-end.w-clearfix > div')
+                if len(qpPlacesLeft) > 0:
+                    qpPlacesLeft = qpPlacesLeft[0].get_text(strip=True)
+            qpPlacesLeft = str(qpPlacesLeft)
 
             # извлекаем информацию о необходимости приглашения на игру
             needInvite = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom.w-clearfix > '
@@ -564,12 +575,15 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
 
             # исключаем из выборки заведомо неподходящие квизы: где нет мест, по инвайтам, квиз уже прошел
             # из остального формируем словарь games
-            if len(needInvite) == 0 and quizDT >= curDT and qpPlacesLeft != 'Нет мест! Но можно записаться в резерв':
+            if quizDT >= curDT and 'Резерв заполнен' not in qpPlacesLeft and 'приглаш' not in needInvite:
                 games[orgTag + str(i)] = {}
                 games[orgTag + str(i)]['game'] = qpGameName + ' ' + qpGameNumber
                 games[orgTag + str(i)]['date'] = quizDT
                 games[orgTag + str(i)]['bar'] = qpBar
                 games[orgTag + str(i)]['tag'] = qpGameTag
+                logger.debug(f'TEST QP AVAILABILITY: {qpGameName}: {qpPlacesLeft}')
+                if 'резерв' in qpPlacesLeft.lower():
+                    games[orgTag + str(i)]['availability'] = 'Резерв'
 
     except Exception as err:
         # если при скрэйпиге произошла ошибка, то сохраняем ее в organizatorsErrors
@@ -716,12 +730,14 @@ def scrape_wow_quiz(orgLink, orgName, orgTag, dateParams):
 
             # исключаем из выборки заведомо неподходящие квизы: нет мест, квиз уже прошел
             # из остального формируем словарь games
-            if wowAvailability.lower() not in ['резерв', 'мест нет'] and quizDT >= curDT:
+            if wowAvailability.lower() not in ['мест нет'] and quizDT >= curDT:
                 games[orgTag + str(n)] = {}
                 games[orgTag + str(n)]['game'] = wowGameName
                 games[orgTag + str(n)]['date'] = quizDT
                 games[orgTag + str(n)]['bar'] = wowBar
                 games[orgTag + str(n)]['tag'] = wowGameTag
+                if wowAvailability.lower() == 'резерв':
+                    games[orgTag + str(n)]['availability'] = 'Резерв'
 
         # закрываем браузер
         driver.close()
@@ -915,6 +931,11 @@ def create_formatted_quiz_list(games, organizatorErrors, **kwargs):
             if mainLoopState:
                 continue  # прерываем outer loop
 
+        # извлекаем информацию о доступности квиза, если еще есть запись в резерв, то отображаем это
+        quizAvailability = games[i].get('availability', '')
+        if quizAvailability:
+            quizAvailability = f'<b>{quizAvailability.upper()}</b>'
+
         # извлекаем информацию о дате проведения квиза
         quizDate = games[i]['date']
         quizTime = quizDate.time()
@@ -944,7 +965,7 @@ def create_formatted_quiz_list(games, organizatorErrors, **kwargs):
             # делаем итоговое форматирование строки о квизе вида:
             # 1. <b>Лига Индиго</b>: Игра №1 Сезон №11. Бар: Три Лося, понедельник, 15 января, 19:30\n'
             quizReadable = f"{k}. {organizator}: {games[i]['game']}. Бар: {barNormalizedName}, {quizDOWReadable}, " \
-                           f"{quizDateReadable}\n"
+                           f"{quizDateReadable}. {quizAvailability}\n"
             quizList.append(quizReadable)
 
     # если при запросе информации по каким-то организаторам были ошибки - выводим пользователю это сообщение
