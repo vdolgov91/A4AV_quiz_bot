@@ -12,7 +12,7 @@
     scrape_mama_quiz(orgLink, orgName, orgTag, dateParams) - скрейпит информацию с сайта Мама Квиз
     scrape_quiz_please(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Квиз Плиз
     scrape_shaker_quiz(quizSoup, orgName, orgTag, dateParams) - скрейпит информацию с сайта Шейкер Квиз
-    scrape_wow_quiz(orgLink, orgName, orgTag, dateParams) - скрейпит информацию с сайта Wow Quiz
+    scrape_wow_quiz(orgLink, orgName, orgTag, dateParams) - скрейпит информацию с сайта Вау Квиз
 
 Содержит константы:
     DOW_DICT - словарь соответствия порядкового номера дня недели его названию (1: 'понедельник')
@@ -464,6 +464,8 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
     :param dateParams (list): список временных параметров из collect_quiz_data
     :return: games (dict), organizatorErrors (dict)
     """
+    logger.debug("SCRAPE QUIZ PLEASE")
+    logger.debug(quizSoup)
     games = {}
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
@@ -483,9 +485,11 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
             используемых при unit-тестировании.
             Само id '0558' хранится в curElement.attrs['id'][1:]/
             '''
+            logger.debug(f'{curElement.attrs=}')
             for selectorNum in range(30, 100):
                 try:
                     selectorBeginning = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
+                    logger.debug(f'{selectorBeginning=}')
                     testElem = quizSoup.select(rf'{selectorBeginning} > div > div.h3.h3')
                     testElem = testElem[0].get_text(strip=True)
                     break
@@ -498,6 +502,7 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
 
             # формируем корректный id квиза, который будет являться префиксом для CSS-селекторов нужных элементов
             selectorBeginning = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
+            logger.debug(f'{selectorBeginning=}')
 
             # извлекаем дату проведения квиза вида "12 июня, Воскресенье"
             qpDateTime = quizSoup.select(f'{selectorBeginning} > div > div.h3.h3')
@@ -539,6 +544,7 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
             # поочередно
             qpPlacesLeft = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom > '
                                            f'div.game-status.schedule-available.w-clearfix > div')
+            logger.debug(f'{qpPlacesLeft=}')
             if len(qpPlacesLeft) > 0:
                 qpPlacesLeft = qpPlacesLeft[0].get_text(strip=True)
             else:
@@ -643,9 +649,9 @@ def scrape_shaker_quiz(quizSoup, orgName, orgTag, dateParams):
 
 def scrape_wow_quiz(orgLink, orgName, orgTag, dateParams):
     """
-    Функция которая скрейпит информацию с сайтов WOW Quiz и возвращает список квизов и возникших ошибок.
+    Функция которая скрейпит информацию с сайтов Вау Квиз и возвращает список квизов и возникших ошибок.
     :param orgLink (str): ссылка на веб-страницу с расписанием квизов организатора в конкретном городе
-    :param orgName (str): имя организатора ('WOW Quiz')
+    :param orgName (str): имя организатора ('Вау Квиз')
     :param orgTag (str): тэг организатора ('wow')
     :param dateParams (list): список временных параметров из collect_quiz_data
     :return: games (dict), organizatorErrors (dict)
@@ -785,7 +791,7 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
             try:
                 # для Мама Квиз и WOW Quiz делаем скрейпинг с использованием Selenium, для остальных - стандартным
                 # способом
-                if orgName not in ('Мама Квиз', 'WOW Quiz'):
+                if orgName not in ('Мама Квиз', 'Вау Квиз'):
                     quizSoup = get_data_from_web_page(orgName, orgLink, localHTMLs)
 
                 if orgName == 'Квиз Плиз':
@@ -815,7 +821,7 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
                     games = {**games, **gamesWow}
                     organizatorErrors = {**organizatorErrors, **orgErrorsWow}
 
-                elif orgName == 'WOW Quiz':
+                elif orgName == 'Вау Квиз':
                     gamesWow, orgErrorsWow = scrape_wow_quiz(orgLink, orgName, orgTag, dateParams)
                     games = {**games, **gamesWow}
                     organizatorErrors = {**organizatorErrors, **orgErrorsWow}

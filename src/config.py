@@ -106,12 +106,12 @@ THEME_MAPPING_DICT = {
 # в качестве ключа словаря пишем название организатора, в качестве значения на 0 позиции - тэг организатора,
 # на 1 позиции - ссылку, где строкой <city_tag> указывается в каком месте ссылка параметризируется
 ORGANIZATORS_DICT = {
+    'Вау Квиз': ['wow', 'https://<city_tag>.wowquiz.ru/schedule'],                  # https://nsk.wowquiz.ru/schedule
     'Квиз Плиз': ['qp', 'https://<city_tag>.quizplease.ru/schedule'],               # https://nsk.quizplease.ru/schedule
     'Лига Индиго': ['li', 'https://ligaindigo.ru/<city_tag>'],                      # https://ligaindigo.ru/novosibirsk
     'Мама Квиз': ['mama', 'https://<city_tag>.mamaquiz.ru/#games'],                 # https://nchk.mamaquiz.ru/, у Новосибирска просто https://mamaquiz.ru/
     'Шейкер Квиз': ['shaker', 'https://<city_tag>.shakerquiz.ru'],                  # https://novosibirsk.shakerquiz.ru/
-    'Эйнштейн пати': ['ein', ' https://<city_tag>.albertparty.ru/schedule'],        # https://nsk.albertparty.ru/schedule
-    'WOW Quiz': ['wow', 'https://<city_tag>.wowquiz.ru/schedule']                   # https://nsk.wowquiz.ru/schedule
+    'Эйнштейн пати': ['ein', ' https://<city_tag>.albertparty.ru/schedule']        # https://nsk.albertparty.ru/schedule
 }
 
 # словарь с информацией о городах - какие организаторы есть, какой у этого организатора <city_tag> для формирования

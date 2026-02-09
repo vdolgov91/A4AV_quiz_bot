@@ -453,7 +453,7 @@ async def create_poll_on_selected_quiz(update: Update, context: ContextTypes.DEF
         quizInfo = quizInfo[dotIndex + 2:]
 
         # варианты ответов в опросе
-        questions = ["Иду", "Не иду", "Мнусь"]
+        questions = ["Иду", "Не иду", "Хочу, но пока не знаю", "Иду+1", "Иду+2"]
 
         # создаем опрос, не анонимный, множественный выбор отсутствует
         # результаты опроса бот не обрабатывает
