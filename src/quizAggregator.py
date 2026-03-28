@@ -611,29 +611,42 @@ def scrape_shaker_quiz(quizSoup, orgName, orgTag, dateParams):
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
     try:
-        # у Шейкер Квиза вся информация хранится в JSON-структуре c id __NEXT_DATA__
         shakerData = quizSoup.find('script', id='__NEXT_DATA__')
         shakerData = json.loads(shakerData.string)
-        shakerGamesList = shakerData['props']['pageProps']['games']
+
+        # судя по всему каждый раз список элементов приходит в разном порядке, поэтому определяем нужные элементы
+        # по названию из нулевого элемента списка, сам список квизов/ мест проведения лежит в первом элементе списка
+        for shakerInfoList in shakerData['props']['pageProps']['store']:
+            if shakerInfoList[0] == 'GET/games/search':
+                shakerGamesList = shakerInfoList[1]
+            elif shakerInfoList[0] == 'GET/games/venue/:venue/search':
+                shakerVenuesList = shakerInfoList[1]
+
         for n, shakerGame in enumerate(shakerGamesList):
-            shakerGameName = shakerGame['theme']['name']
+            shakerGameName = shakerGame['name']
             shakerGameNumber = shakerGame.get('number')
             if shakerGameNumber:
                 shakerGameName += f" #{shakerGameNumber}"
 
             shakerGameTag = assign_themes_to_quiz(shakerGameName, orgName)
             shakerGameDateString = shakerGame['event_time']
-
             # в отличие от других квизов у Шейкера время лежит сразу в ISO формате,
             # но надо отрезать информацию о часовом поясе для возможности сравнения с curDT, в котором нет часового пояса
             shakerDT = datetime.datetime.fromisoformat(shakerGameDateString.replace('Z', '+07:00')).replace(tzinfo=None)
-            shakerBar = shakerGame['venue']['name']
-            # TODO: пока вижу только статус 'PUBLISHED', может есть другие нормальные
+
+            # TODO: пока вижу только статус 'published', может есть другие нормальные
             shakerAvailability = shakerGame['status']
+
+            shakerBar = ''  # бары извлекаем из связанного списка по id игры
+            shakerGameId = shakerGame['id']
+            for venueInfo in shakerVenuesList:
+                if venueInfo['game_id'] == shakerGameId:
+                    shakerBar = venueInfo['name']
+                    break
 
             # исключаем из выборки заведомо неподходящие квизы: нет мест, квиз уже прошел
             # из остального формируем словарь games
-            if shakerAvailability.lower() == 'published' and shakerDT >= curDT:
+            if shakerAvailability.lower() == 'publish' and shakerDT >= curDT:
                 games[orgTag + str(n + 1)] = {}
                 games[orgTag + str(n + 1)]['game'] = shakerGameName
                 games[orgTag + str(n + 1)]['date'] = shakerDT
