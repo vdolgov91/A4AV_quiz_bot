@@ -681,17 +681,20 @@ def scrape_wow_quiz(orgLink, orgName, orgTag, dateParams):
         driver.get(orgLink)
         # ждем чтобы подгрузился изначальный список квизов
         import time
-        time.sleep(2)
+        time.sleep(5)
 
         # нажимаем кнопку "Загрузить" несколько раз, чтобы загрузить полный список квизов. Когда загрузятся все квизы, кнопка "Загрузить" пропадет
-        while True:
+        for i in range(10):
             try:
                 loadMoreButton = driver.find_element(By.CSS_SELECTOR, ".btn.schedule__load-btn.outline-1")
                 # проскролливаем экран до кнопки, чтобы дать ей время полностью загрузиться. Когда она загрузилась - жмем кнопку
                 ActionChains(driver).move_to_element(loadMoreButton).click().perform()
                 time.sleep(0.3)
+                i += 1
             except NoSuchElementException:
                 break
+            except Exception as e:
+                logger.debug(f'scrape_wow_quiz. Exception while trying to push the button: {e}')
 
         # находим элемент с расписанием всех квизов, внутри него находим элементы с информацией по каждому квизу
         parentElement = driver.find_element(By.CSS_SELECTOR, "#schedule > div.schedule__list")
