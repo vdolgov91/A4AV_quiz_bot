@@ -455,85 +455,66 @@ def scrape_mama_quiz(orgLink, orgName, orgTag, dateParams):
     return games, organizatorErrors
 
 
-def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
+def scrape_quiz_please(orgLink, orgName, orgTag, dateParams):
     """
     Функция которая скрейпит информацию с сайта Квиз Плиз и возвращает список квизов и возникших ошибок.
-    :param quizSoup (bs4.BeautifulSoup): объект с HTML-кодом страницы с расписанием квизов
+    :param orgLink (str): ссылка на веб-страницу с расписанием квизов организатора в конкретном городе
     :param orgName (str): имя организатора ('Квиз Плиз')
     :param orgTag (str): тэг организатора ('qp')
     :param dateParams (list): список временных параметров из collect_quiz_data
     :return: games (dict), organizatorErrors (dict)
     """
-    logger.debug("SCRAPE QUIZ PLEASE")
-    logger.debug(quizSoup)
     games = {}
     organizatorErrors = {}
     curYear, nextYear, curMonth, curDT = dateParams
 
     try:
-        # извлекаем содержимое родительского HTML-элемента, в котором хранится информация о всех квизах
-        qpElements = quizSoup.select('#w1 > .schedule-column')
-
-        # элементы массива qpElements выглядят как {'class': ['schedule-column'], 'id': '40558'}
-        # по очереди извлекаем данные id, сохраняем их как selectorBeginning и извлекаем из них информацию о каждом квизе
+        options = Options()  # настройки для запуска Google Chrome с помощью ChromeDriver
+        options.add_argument('--no-sandbox')  # чтобы можно было запускать от root
+        options.add_argument('--headless=new')  # чтобы не открывалось само приложение Google Chrome
+        options.add_argument(
+            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+        )
+        driver = webdriver.Chrome(options=options)
+        driver.get(orgLink)
+        # ждем чтобы подгрузился изначальный список квизов
+        import time
+        time.sleep(5)
+        logger.debug("Прождали 5 сек после открытия браузера")
+        # получаем массив с расписанием каждой игры и проходим по нему
+        qpElements = driver.find_elements(By.CSS_SELECTOR, "#w1 > .schedule-column")
         for i, curElement in enumerate(qpElements):
-            '''Id квизов в HTML-коде хранятся в виде '40558', но в CSS-селекторах id выглядят как '#\34 0558'
-            Число 34 примерно раз в полгода увеличивается на единицу, поэтому сделан цикл по подбору нужного числа:
-            если тестовый элемент извлечен и над ним можно провести реально необходимую операцию, значит подобран нужный
-            селектор и цикл прерывается. Если выполнение операции вылетело в Exception, то selectorNum инкрементируется.
-            Необходимо чтобы цикл начинался минимум с 36, потому что такое число используется в локальных файлах
-            используемых при unit-тестировании.
-            Само id '0558' хранится в curElement.attrs['id'][1:]/
-            '''
-            logger.debug(f'{curElement.attrs=}')
-            for selectorNum in range(30, 100):
-                try:
-                    selectorBeginning = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
-                    logger.debug(f'{selectorBeginning=}')
-                    testElem = quizSoup.select(rf'{selectorBeginning} > div > div.h3.h3')
-                    testElem = testElem[0].get_text(strip=True)
-                    break
-
-                except Exception:
-                    # этот Exception не добавляется в organizatorsErrors, так как нужен только для подбора селектора
-                    # если финальная цифра цикла все равно не подойдет, то Exception произойдет далее в коде функции
-                    selectorNum += 1
-                    continue
-
-            # формируем корректный id квиза, который будет являться префиксом для CSS-селекторов нужных элементов
-            selectorBeginning = rf'#\{selectorNum} ' + curElement.attrs['id'][1:]
-            logger.debug(f'{selectorBeginning=}')
-
             # извлекаем дату проведения квиза вида "12 июня, Воскресенье"
-            qpDateTime = quizSoup.select(f'{selectorBeginning} > div > div.h3.h3')
-            qpDateTime = qpDateTime[0].get_text(strip=True)
-
+            qpDateTime = curElement.find_element(By.CSS_SELECTOR, "div > div.h3.h3").text.strip()
             # извлекаем название игры
-            qpGameNameAndNum = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > a > div.h2.h2')
-            qpGameName = qpGameNameAndNum[0].get_text(strip=True)
-            qpGameNumber = qpGameNameAndNum[1].get_text(strip=True)
+            qpGameNameAndNum = curElement.find_elements(By.CSS_SELECTOR, "div > div.schedule-block-top > a > div.h2.h2")
+            qpGameName = qpGameNameAndNum[0].text.strip()
+            qpGameNumber = qpGameNameAndNum[1].text.strip()
 
             # по названию игры добаляем тэг с тематикой
             qpGameTag = assign_themes_to_quiz(qpGameName, orgName)
 
             # извлекаем название площадки проведения квиза
-            qpBar = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > '
-                                    f'div:nth-child(1) > div > div:nth-child(1) > div')
+            qpBar = curElement.find_elements(By.CSS_SELECTOR,'div.schedule-block-top > div.schedule-info-block > '
+                                                             'div:nth-child(1) > div > div:nth-child(1) > div')
             # информация о баре 'Максимилианс' может храниться в другом элементе (div:nth-child(2)
             if len(qpBar) == 0:
-                qpBar = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > '
-                                        f'div:nth-child(2) > div > div:nth-child(1) > div')
-            qpBar = qpBar[0].get_text(strip=True)
+                qpBar = curElement.find_elements(By.CSS_SELECTOR,'div.schedule-block-top > div.schedule-info-block'
+                                                                 ' > div:nth-child(2) > div > div:nth-child(1) > div')
 
-            # извлекаем время начала квиза вида "в 20:00"
-            qpStartTime = quizSoup.select(
-                f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > div:nth-child(2) > div > div')
-            qpStartTime = qpStartTime[0].get_text(strip=True)
-            # у бара 'Максимилианс' время хранится другом элементе (div:nth-child(3))
+            qpBar = qpBar[0].text.strip()
+
+            # извлекаем время начала квиза вида "в 20:00"; у Максимилианс хранится в другом тэге
             if 'Максимилианс' in qpBar:
-                qpStartTime = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-top > div.schedule-info-block > '
-                                              f'div:nth-child(3) > div > div')
-                qpStartTime = qpStartTime[0].get_text(strip=True)
+                qpStartTime = curElement.find_elements(By.CSS_SELECTOR,
+                                                       f'div > div.schedule-block-top > div.schedule-info-block > '
+                                                       f'div:nth-child(3) > div > div')
+                qpStartTime = qpStartTime[0].text.strip()
+            else:
+                qpStartTime = curElement.find_element(By.CSS_SELECTOR,
+                                                      'div > div.schedule-block-top > div.schedule-info-block > '
+                                                      'div:nth-child(2) > div > div').text.strip()
             # у Квиз Плиз время начали игры пишется в формате "в 20:00", поэтому 2 первых символа отрезаем
             qpStartTime = qpStartTime[2:]
             qpHour = int(qpStartTime[:2])
@@ -542,23 +523,16 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
             # извлекаем наличие мест на игру вида: "Нет мест! Но можно записаться в резерв"/ "Осталось мало мест"
             # информация о том что места есть и о том что запись резерв хранится в разных элементах, запрашиваем их
             # поочередно
-            qpPlacesLeft = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom > '
-                                           f'div.game-status.schedule-available.w-clearfix > div')
-            logger.debug(f'{qpPlacesLeft=}')
+            qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.schedule-block-bottom > '
+                                                                     'div.game-status.schedule-available.w-clearfix > div')
             if len(qpPlacesLeft) > 0:
-                qpPlacesLeft = qpPlacesLeft[0].get_text(strip=True)
+                qpPlacesLeft = qpPlacesLeft[0].text.strip()
             else:
-                qpPlacesLeft = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom.w-clearfix > '
-                                               f'div.game-status.schedule-end.w-clearfix > div')
+                qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.schedule-block-bottom.w-clearfix > '
+                                                                         'div.game-status.schedule-end.w-clearfix > div')
                 if len(qpPlacesLeft) > 0:
-                    qpPlacesLeft = qpPlacesLeft[0].get_text(strip=True)
+                    qpPlacesLeft = qpPlacesLeft[0].text.strip()
             qpPlacesLeft = str(qpPlacesLeft)
-
-            # извлекаем информацию о необходимости приглашения на игру
-            needInvite = quizSoup.select(f'{selectorBeginning} > div > div.schedule-block-bottom.w-clearfix > '
-                                         f'div.game-status.schedule-end.w-clearfix > div')
-            if len(needInvite) > 0:
-                needInvite = needInvite[0].get_text(strip=True)
 
             # преобразовываем дату проведения квиза в нужный формат
             # regexp для даты в формате '12 июня, Воскресенье'
@@ -581,7 +555,7 @@ def scrape_quiz_please(quizSoup, orgName, orgTag, dateParams):
 
             # исключаем из выборки заведомо неподходящие квизы: где нет мест, по инвайтам, квиз уже прошел
             # из остального формируем словарь games
-            if quizDT >= curDT and 'Резерв заполнен' not in qpPlacesLeft and 'приглаш' not in needInvite:
+            if quizDT >= curDT and 'Резерв заполнен' not in qpPlacesLeft:
                 games[orgTag + str(i)] = {}
                 games[orgTag + str(i)]['game'] = qpGameName + ' ' + qpGameNumber
                 games[orgTag + str(i)]['date'] = quizDT
@@ -805,13 +779,13 @@ def collect_quiz_data(cityOrganizators, cityLinks, localHTMLs=None):
             orgTag = ORGANIZATORS_DICT[orgName][0]
             orgLink = cityLinks[cityOrganizators.index(orgName)]
             try:
-                # для Мама Квиз и WOW Quiz делаем скрейпинг с использованием Selenium, для остальных - стандартным
+                # для части организаторов делаем скрейпинг с использованием Selenium, для остальных - стандартным
                 # способом
-                if orgName not in ('Мама Квиз', 'Вау Квиз'):
+                if orgName not in ('Вау Квиз', 'Квиз Плиз', 'Мама Квиз'):
                     quizSoup = get_data_from_web_page(orgName, orgLink, localHTMLs)
 
                 if orgName == 'Квиз Плиз':
-                    gamesQP, orgErrorsQP = scrape_quiz_please(quizSoup, orgName, orgTag, dateParams)
+                    gamesQP, orgErrorsQP = scrape_quiz_please(orgLink, orgName, orgTag, dateParams)
                     games = {**games, **gamesQP}  # добавляем к словарю games полученные значения из словаря **gamesQP
                     organizatorErrors = {**organizatorErrors, **orgErrorsQP}
 
