@@ -286,35 +286,70 @@ async def send_filtered_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # формируем сообщение для отправки пользователю, в зависимости от количества найденных квизов
     # текст отформатирован с использованием HTML-разметки.
+    # заменяем заглушку на результат
     if len(quizList) == 0:
-        reply_text = '<b>НИКТО</b> НЕ ПРОВОДИТ ТАКИХ КВИЗОВ!'
+        await query.edit_message_text(
+            '<b>НИКТО</b> НЕ ПРОВОДИТ ТАКИХ КВИЗОВ!', parse_mode='HTML'
+        )
         logger.info(f'Для пользователя {user.id} не вернулось ни одного квиза под данный фильтр')
     else:
-        reply_text = f'<u>Вот квизы, которые пройдут в {DOWtext.lower()} по тематике {theme}:</u>\n'
-        for i, curQuiz in enumerate(quizList):
+        # заменяем сообщение-заглушку на короткий заголовок
+        await query.edit_message_text(
+            f'<u>Вот квизы, которые пройдут в {DOWtext.lower()} по тематике {theme}:</u>',
+            parse_mode='HTML'
+        )
+
+        # собираем тело сообщения: список квизов + инструкции
+        reply_text = ''
+        for curQuiz in quizList:
             reply_text += curQuiz + '\n'
-        reply_text += '\nОтправь мне порядковый номер понравившейся игры и я создам голосовалку. Если дело ' \
-                      'происходит в группе, то ответь на мое сообщение, чтобы я понял что ты обращаещься ко мне. \n'
-    reply_end = 'Напоминаю, что согласно твоим предпочтениям часть игр могла быть скрыта из результатов поиска.\n' \
-                'Отправь команду /all если хочешь посмотреть полный список квизов.\nОтправь команду /preferences, ' \
-                'чтобы изменить свои предпочтения.'
-    reply_text += '\n' + reply_end
+        reply_text += (
+            '\nОтправь мне порядковый номер понравившейся игры и я создам голосовалку. '
+            'Если дело происходит в группе, то ответь на мое сообщение, чтобы я понял '
+            'что ты обращаещься ко мне.\n'
+            'Напоминаю, что согласно твоим предпочтениям часть игр могла быть скрыта из '
+            'результатов поиска.\n'
+            'Отправь команду /all если хочешь посмотреть полный список квизов.\n'
+            'Отправь команду /preferences, чтобы изменить свои предпочтения.'
+        )
 
-    # если длина получившегося списка квизов превышает максимальное значение 4096 символов, то так как
-    # query.edit_message_text подменяет текст последнего сообщения, а не шлет N новых, мы не можем прислать полный
-    # список квизов в этом MessageHandler. Поэтому выводим пользователю ошибку.
-    messageLength = len(reply_text)
-    if messageLength > TELEGRAM_MAX_MESSAGE_LENGTH:
-        reply_text = 'Под выборку попало слишком много квизов и я не могу их все отобразить. Ты можешь нажать /all и ' \
-                     'тогда я покажу полный список квизов (но без твоих предпочтений), либо можешь нажать /start и ' \
-                     'изменить предпочтения. Также ты можешь исключить отдельные бары, тематики и организаторов с ' \
-                     'помощью команды /preferences'
-        logger.warning(f'Для пользователя {user.id} сформировался слишком большой список квизов в send_filtered_quiz')
+        # разбивка на 1-3 сообщения по '\n' (как в send_all_quizzes)
+        messageLength = len(reply_text)
+        num_of_messages = 1
+        if messageLength > TELEGRAM_MAX_MESSAGE_LENGTH:
+            for i in range(2, 4):
+                if messageLength in range(TELEGRAM_MAX_MESSAGE_LENGTH, i * TELEGRAM_MAX_MESSAGE_LENGTH):
+                    num_of_messages = i
+                    logger.info(
+                        f'Список квизов будет разделен на {num_of_messages} сообщения, '
+                        f'так как его длина составляет {messageLength} символов при лимите '
+                        f'в {TELEGRAM_MAX_MESSAGE_LENGTH} символов.'
+                    )
+                    break
 
-    # отправляем пользователю сообщение с отфильтрованным списком квизов
-    await query.edit_message_text(
-        reply_text, parse_mode='HTML'
-    )
+        if num_of_messages > 1:
+            sliceIndexes = [0]
+            for i in range(num_of_messages - 1):
+                subString = reply_text[sliceIndexes[i]:sliceIndexes[i] + TELEGRAM_MAX_MESSAGE_LENGTH]
+                indexInStringSlice = subString.rfind('\n')
+                sliceIndexes.append(sliceIndexes[i] + indexInStringSlice)
+            sliceIndexes.append(messageLength)
+
+            for k in range(num_of_messages):
+                curMessage = reply_text[sliceIndexes[k]:sliceIndexes[k + 1]]
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=curMessage,
+                    reply_markup=ReplyKeyboardRemove(),
+                    parse_mode='HTML'
+                )
+        else:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=reply_text,
+                reply_markup=ReplyKeyboardRemove(),
+                parse_mode='HTML'
+            )
 
     return QUIZ_LIST_SENT_TO_USER
 
