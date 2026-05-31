@@ -483,38 +483,33 @@ def scrape_quiz_please(orgLink, orgName, orgTag, dateParams):
         time.sleep(5)
         logger.debug("Прождали 5 сек после открытия браузера")
         # получаем массив с расписанием каждой игры и проходим по нему
-        qpElements = driver.find_elements(By.CSS_SELECTOR, "#w1 > .schedule-column")
+        schedule_element = driver.find_element(By.CSS_SELECTOR,
+                                               "div > div > div > div > div:nth-child(2) > div > div > div.content-block > div.card-container ")
+        qpElements = schedule_element.find_elements(By.XPATH, "./*")
         for i, curElement in enumerate(qpElements):
             # извлекаем дату проведения квиза вида "12 июня, Воскресенье"
-            qpDateTime = curElement.find_element(By.CSS_SELECTOR, "div > div.h3.h3").text.strip()
+            qpDateTime = curElement.find_element(By.CSS_SELECTOR, "div > p.game-card__date").text.strip()
             # извлекаем название игры
-            qpGameNameAndNum = curElement.find_elements(By.CSS_SELECTOR, "div > div.schedule-block-top > a > div.h2.h2")
-            qpGameName = qpGameNameAndNum[0].text.strip()
-            qpGameNumber = qpGameNameAndNum[1].text.strip()
+            qpGameNameAndNumParent = curElement.find_element(By.CSS_SELECTOR, "div > div.game-card__name-wrapper")
+            qpGameNameAndNumChildren = qpGameNameAndNumParent.find_elements(By.XPATH, "./*")
+            qpGameName = qpGameNameAndNumChildren[0].text.strip()
+            qpGameNumber = qpGameNameAndNumChildren[1].text.strip()
 
             # по названию игры добаляем тэг с тематикой
             qpGameTag = assign_themes_to_quiz(qpGameName, orgName)
 
             # извлекаем название площадки проведения квиза
-            qpBar = curElement.find_elements(By.CSS_SELECTOR,'div.schedule-block-top > div.schedule-info-block > '
-                                                             'div:nth-child(1) > div > div:nth-child(1) > div')
-            # информация о баре 'Максимилианс' может храниться в другом элементе (div:nth-child(2)
-            if len(qpBar) == 0:
-                qpBar = curElement.find_elements(By.CSS_SELECTOR,'div.schedule-block-top > div.schedule-info-block'
-                                                                 ' > div:nth-child(2) > div > div:nth-child(1) > div')
+            qpBar = curElement.find_element(By.CSS_SELECTOR,
+                                            "div > div.game-card__location > div:nth-child(1) > div > p.game-card__location-text__title").text.strip()
+            # Информация о баре хранится в формате 'Бар-ресторан Друзья Информация о площадке', так как название бара лежит в самом элементе,
+            # а слова "Информация о площадке" лежат в его дочернем элементе. А text возвращает весь текст внутри элемента и его детей.
+            # Так как текст "Информация о площадке - стабильный, не будем делать сложную схему по удалению текста дочернего элемента, а вырежем просто"
+            if 'Информация о площадке' in qpBar:
+                index_to_strip_bar = len(qpBar) - len("Информация о площадке") - 1
+                qpBar = qpBar[0:index_to_strip_bar]
 
-            qpBar = qpBar[0].text.strip()
-
-            # извлекаем время начала квиза вида "в 20:00"; у Максимилианс хранится в другом тэге
-            if 'Максимилианс' in qpBar:
-                qpStartTime = curElement.find_elements(By.CSS_SELECTOR,
-                                                       f'div > div.schedule-block-top > div.schedule-info-block > '
-                                                       f'div:nth-child(3) > div > div')
-                qpStartTime = qpStartTime[0].text.strip()
-            else:
-                qpStartTime = curElement.find_element(By.CSS_SELECTOR,
-                                                      'div > div.schedule-block-top > div.schedule-info-block > '
-                                                      'div:nth-child(2) > div > div').text.strip()
+            qpStartTime = curElement.find_element(By.CSS_SELECTOR,
+                                                  "div > div.game-card__location > div:nth-child(2) > p").text.strip()
             # у Квиз Плиз время начали игры пишется в формате "в 20:00", поэтому 2 первых символа отрезаем
             qpStartTime = qpStartTime[2:]
             qpHour = int(qpStartTime[:2])
@@ -523,8 +518,7 @@ def scrape_quiz_please(orgLink, orgName, orgTag, dateParams):
             # извлекаем наличие мест на игру вида: "Нет мест! Но можно записаться в резерв"/ "Осталось мало мест"
             # информация о том что места есть и о том что запись резерв хранится в разных элементах, запрашиваем их
             # поочередно
-            qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.schedule-block-bottom > '
-                                                                     'div.game-status.schedule-available.w-clearfix > div')
+            qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.game-card__bottom > div.game-card__sold > p')
             if len(qpPlacesLeft) > 0:
                 qpPlacesLeft = qpPlacesLeft[0].text.strip()
             else:
