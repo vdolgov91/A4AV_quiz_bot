@@ -482,82 +482,99 @@ def scrape_quiz_please(orgLink, orgName, orgTag, dateParams):
         import time
         time.sleep(5)
         logger.debug("Прождали 5 сек после открытия браузера")
-        # получаем массив с расписанием каждой игры и проходим по нему
-        schedule_element = driver.find_element(By.CSS_SELECTOR,
-                                               "div > div > div > div > div:nth-child(2) > div > div > div.content-block > div.card-container ")
-        qpElements = schedule_element.find_elements(By.XPATH, "./*")
-        for i, curElement in enumerate(qpElements):
-            # извлекаем дату проведения квиза вида "12 июня, Воскресенье"
-            qpDateTime = curElement.find_element(By.CSS_SELECTOR, "div > p.game-card__date").text.strip()
-            # извлекаем название игры
-            qpGameNameAndNumParent = curElement.find_element(By.CSS_SELECTOR, "div > div.game-card__name-wrapper")
-            qpGameNameAndNumChildren = qpGameNameAndNumParent.find_elements(By.XPATH, "./*")
-            qpGameName = qpGameNameAndNumChildren[0].text.strip()
-            qpGameNumber = qpGameNameAndNumChildren[1].text.strip()
 
-            # по названию игры добаляем тэг с тематикой
-            qpGameTag = assign_themes_to_quiz(qpGameName, orgName)
+        # Скрейпим страницу, затем ищем кнопку следующая страница
+        for i in range(2):
+            # получаем массив с расписанием каждой игры и проходим по нему
+            schedule_element = driver.find_element(By.CSS_SELECTOR,
+                                                   "div > div > div > div > div:nth-child(2) > div > div > div.content-block > div.card-container ")
+            qpElements = schedule_element.find_elements(By.XPATH, "./*")
+            for i, curElement in enumerate(qpElements):
+                # извлекаем дату проведения квиза вида "12 июня, Воскресенье"
+                qpDateTime = curElement.find_element(By.CSS_SELECTOR, "div > p.game-card__date").text.strip()
+                # извлекаем название игры
+                qpGameNameAndNumParent = curElement.find_element(By.CSS_SELECTOR, "div > div.game-card__name-wrapper")
+                qpGameNameAndNumChildren = qpGameNameAndNumParent.find_elements(By.XPATH, "./*")
+                qpGameName = qpGameNameAndNumChildren[0].text.strip()
+                # у игр вида "ОТКРЫТИЕ ЛЕТНЕГО СЕЗОНА NSK" нет элемента с номером
+                try:
+                    qpGameNumber = qpGameNameAndNumChildren[1].text.strip()
+                except Exception:
+                    qpGameNumber = ''
 
-            # извлекаем название площадки проведения квиза
-            qpBar = curElement.find_element(By.CSS_SELECTOR,
-                                            "div > div.game-card__location > div:nth-child(1) > div > p.game-card__location-text__title").text.strip()
-            # Информация о баре хранится в формате 'Бар-ресторан Друзья Информация о площадке', так как название бара лежит в самом элементе,
-            # а слова "Информация о площадке" лежат в его дочернем элементе. А text возвращает весь текст внутри элемента и его детей.
-            # Так как текст "Информация о площадке - стабильный, не будем делать сложную схему по удалению текста дочернего элемента, а вырежем просто"
-            if 'Информация о площадке' in qpBar:
-                index_to_strip_bar = len(qpBar) - len("Информация о площадке") - 1
-                qpBar = qpBar[0:index_to_strip_bar]
+                # по названию игры добаляем тэг с тематикой
+                qpGameTag = assign_themes_to_quiz(qpGameName, orgName)
 
-            qpStartTime = curElement.find_element(By.CSS_SELECTOR,
-                                                  "div > div.game-card__location > div:nth-child(2) > p").text.strip()
-            # у Квиз Плиз время начали игры пишется в формате "в 20:00", поэтому 2 первых символа отрезаем
-            qpStartTime = qpStartTime[2:]
-            qpHour = int(qpStartTime[:2])
-            qpMinute = int(qpStartTime[3:])
+                # извлекаем название площадки проведения квиза
+                qpBar = curElement.find_element(By.CSS_SELECTOR,
+                                                "div > div.game-card__location > div:nth-child(1) > div > p.game-card__location-text__title").text.strip()
+                # Информация о баре хранится в формате 'Бар-ресторан Друзья Информация о площадке', так как название бара лежит в самом элементе,
+                # а слова "Информация о площадке" лежат в его дочернем элементе. А text возвращает весь текст внутри элемента и его детей.
+                # Так как текст "Информация о площадке - стабильный, не будем делать сложную схему по удалению текста дочернего элемента, а вырежем просто"
+                if 'Информация о площадке' in qpBar:
+                    index_to_strip_bar = len(qpBar) - len("Информация о площадке") - 1
+                    qpBar = qpBar[0:index_to_strip_bar]
 
-            # извлекаем наличие мест на игру вида: "Нет мест! Но можно записаться в резерв"/ "Осталось мало мест"
-            # информация о том что места есть и о том что запись резерв хранится в разных элементах, запрашиваем их
-            # поочередно
-            qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.game-card__bottom > div.game-card__sold > p')
-            if len(qpPlacesLeft) > 0:
-                qpPlacesLeft = qpPlacesLeft[0].text.strip()
-            else:
-                qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.schedule-block-bottom.w-clearfix > '
-                                                                         'div.game-status.schedule-end.w-clearfix > div')
+                qpStartTime = curElement.find_element(By.CSS_SELECTOR,
+                                                      "div > div.game-card__location > div:nth-child(2) > p").text.strip()
+                # у Квиз Плиз время начали игры пишется в формате "в 20:00", поэтому 2 первых символа отрезаем
+                qpStartTime = qpStartTime[2:]
+                qpHour = int(qpStartTime[:2])
+                qpMinute = int(qpStartTime[3:])
+
+                # извлекаем наличие мест на игру вида: "Нет мест! Но можно записаться в резерв"/ "Осталось мало мест"
+                # информация о том что места есть и о том что запись резерв хранится в разных элементах, запрашиваем их
+                # поочередно
+                qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.game-card__bottom > div.game-card__sold > p')
                 if len(qpPlacesLeft) > 0:
                     qpPlacesLeft = qpPlacesLeft[0].text.strip()
-            qpPlacesLeft = str(qpPlacesLeft)
+                else:
+                    qpPlacesLeft = curElement.find_elements(By.CSS_SELECTOR, 'div > div.schedule-block-bottom.w-clearfix > '
+                                                                             'div.game-status.schedule-end.w-clearfix > div')
+                    if len(qpPlacesLeft) > 0:
+                        qpPlacesLeft = qpPlacesLeft[0].text.strip()
+                qpPlacesLeft = str(qpPlacesLeft)
 
-            # преобразовываем дату проведения квиза в нужный формат
-            # regexp для даты в формате '12 июня, Воскресенье'
-            qpDateRegEx = re.compile(r'''
-                                    ^(\d|\d\d)\s    # одна или две цифры в начале строки, после пробел
-                                    ([А-Яа-я]+),\s  # месяц, после него запятая пробел
-                                    ([А-Яа-я]+)$    # день недели
-                                    ''', re.VERBOSE)
-            mo = qpDateRegEx.search(qpDateTime)
-            qpDay, qpMonth, qpDOW = mo.groups()
+                # преобразовываем дату проведения квиза в нужный формат
+                # regexp для даты в формате '12 июня, Воскресенье'
+                qpDateRegEx = re.compile(r'''
+                                        ^(\d|\d\d)\s    # одна или две цифры в начале строки, после пробел
+                                        ([А-Яа-я]+),\s  # месяц, после него запятая пробел
+                                        ([А-Яа-я]+)$    # день недели
+                                        ''', re.VERBOSE)
+                mo = qpDateRegEx.search(qpDateTime)
+                qpDay, qpMonth, qpDOW = mo.groups()
 
-            # преобразуем текстовое название месяца в цифру с помощью словаря MONTH_DICT
-            qpMonth = MONTH_DICT[qpMonth]
+                # преобразуем текстовое название месяца в цифру с помощью словаря MONTH_DICT
+                qpMonth = MONTH_DICT[qpMonth]
 
-            # если сейчас декабрь, а расписание содержит январские квизы, то для них указываем в дате следующий год
-            if curMonth == 12 and qpMonth == 1:
-                quizDT = datetime.datetime(nextYear, qpMonth, int(qpDay), qpHour, qpMinute)
-            else:
-                quizDT = datetime.datetime(curYear, qpMonth, int(qpDay), qpHour, qpMinute)
+                # если сейчас декабрь, а расписание содержит январские квизы, то для них указываем в дате следующий год
+                if curMonth == 12 and qpMonth == 1:
+                    quizDT = datetime.datetime(nextYear, qpMonth, int(qpDay), qpHour, qpMinute)
+                else:
+                    quizDT = datetime.datetime(curYear, qpMonth, int(qpDay), qpHour, qpMinute)
 
-            # исключаем из выборки заведомо неподходящие квизы: где нет мест, по инвайтам, квиз уже прошел
-            # из остального формируем словарь games
-            if quizDT >= curDT and 'Резерв заполнен' not in qpPlacesLeft:
-                games[orgTag + str(i)] = {}
-                games[orgTag + str(i)]['game'] = qpGameName + ' ' + qpGameNumber
-                games[orgTag + str(i)]['date'] = quizDT
-                games[orgTag + str(i)]['bar'] = qpBar
-                games[orgTag + str(i)]['tag'] = qpGameTag
-                logger.debug(f'TEST QP AVAILABILITY: {qpGameName}: {qpPlacesLeft}')
-                if 'резерв' in qpPlacesLeft.lower():
-                    games[orgTag + str(i)]['availability'] = 'Резерв'
+                # исключаем из выборки заведомо неподходящие квизы: где нет мест, по инвайтам, квиз уже прошел
+                # из остального формируем словарь games
+                if quizDT >= curDT and 'Резерв заполнен' not in qpPlacesLeft:
+                    games[orgTag + str(i)] = {}
+                    games[orgTag + str(i)]['game'] = qpGameName + ' ' + qpGameNumber
+                    games[orgTag + str(i)]['date'] = quizDT
+                    games[orgTag + str(i)]['bar'] = qpBar
+                    games[orgTag + str(i)]['tag'] = qpGameTag
+                    logger.debug(f'TEST QP AVAILABILITY: {qpGameName}: {qpPlacesLeft}')
+                    if 'резерв' in qpPlacesLeft.lower():
+                        games[orgTag + str(i)]['availability'] = 'Резерв'
+            # нажимаем кнопку перехода на следующую страницу
+            try:
+                nextPageButton = driver.find_element(By.CSS_SELECTOR, "button.game-pagination__button.next")
+                ActionChains(driver).move_to_element(nextPageButton).click().perform()
+                time.sleep(2)
+                i += 1
+            except NoSuchElementException:
+                break
+            except Exception as e:
+                logger.debug(f'scrape_quiz_please. Exception while trying to push the next page button: {e}')
 
     except Exception as err:
         # если при скрэйпиге произошла ошибка, то сохраняем ее в organizatorsErrors
